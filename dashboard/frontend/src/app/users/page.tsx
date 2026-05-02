@@ -10,6 +10,7 @@ import {
   type Role,
   type UpdateUserPayload,
   type User,
+  adminResetPassword,
   createUser,
   deleteUser,
   listUsers,
@@ -248,6 +249,21 @@ function UsersPage({ user: currentUser }: { user: User }) {
     }
   }
 
+  async function handleResetPassword(target: AdminUser) {
+    const newPwd = prompt(`Set a new password for ${target.email} (min 8 chars):`);
+    if (!newPwd) return;
+    if (newPwd.length < 8) { alert("Password must be at least 8 characters."); return; }
+    setBusyId(target.id);
+    try {
+      await adminResetPassword(target.id, newPwd);
+      alert(`Password reset for ${target.email}.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Reset failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <>
       <div className="page-head">
@@ -329,6 +345,14 @@ function UsersPage({ user: currentUser }: { user: User }) {
                               disabled={busy}
                             >
                               Edit
+                            </Button>
+                            <Button
+                              variant="ghost" size="sm"
+                              onClick={() => handleResetPassword(u)}
+                              disabled={busy}
+                              title="Set a new password for this user"
+                            >
+                              {busy ? "…" : "Reset pwd"}
                             </Button>
                             {u.is_active ? (
                               <Button

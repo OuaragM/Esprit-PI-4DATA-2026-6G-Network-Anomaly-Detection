@@ -60,3 +60,13 @@ async def update_user(user_id: str, request: Request, user: CurrentUser = Depend
 @router.delete("/users/{user_id}")
 async def delete_user(user_id: str, request: Request, user: CurrentUser = Depends(require_roles("admin"))):
     return await _forward("DELETE", f"/users/{user_id}", request, user)
+
+
+@router.post("/users/{user_id}/password")
+async def admin_reset_password(user_id: str, request: Request, user: CurrentUser = Depends(require_roles("admin"))):
+    return await _forward("POST", f"/users/{user_id}/password", request, user)
+
+
+@router.post("/auth/change-password")
+async def change_password(request: Request, user: CurrentUser = Depends(get_current_user)):
+    return await _forward("POST", "/auth/change-password", request, user)

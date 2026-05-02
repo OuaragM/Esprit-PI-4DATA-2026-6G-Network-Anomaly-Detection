@@ -5,7 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.routes.deps import actor_from_headers
-from app.schemas.user import UserCreate, UserPublic, UserUpdate
+from app.schemas.user import (
+    PasswordChangeRequest,
+    PasswordResetRequest,
+    UserCreate,
+    UserPublic,
+    UserUpdate,
+)
 from app.services import user_service
 
 router = APIRouter(tags=["users"])
@@ -83,4 +89,35 @@ async def delete_user(
     ok = await user_service.soft_delete_user(db, user_id, actor_id)
     if not ok:
         raise HTTPException(status_code=404, detail="User not found")
+    return None
+
+
+@router.post("/users/{user_id}/password", status_code=204)
+async def admin_reset_password(
+    user_id: UUID,
+    payload: PasswordResetRequest,
+    identity: tuple[UUID, str] = Depends(actor_from_headers),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin overrides a user's password without knowing the current one."""
+    actor_id = _require_admin(identity)
+    ok = await user_service.admin_reset_password(db, user_id, payload.new_password, actor_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="User not found")
+    return None
+
+
+@router.post("/auth/change-password", status_code=204)
+async def change_password(
+    payload: PasswordChangeRequest,
+    identity: tuple[UUID, str] = Depends(actor_from_headers),
+    db: AsyncSession = Depends(get_db),
+):
+    """Authenticated user changes their own password (current_password required)."""
+    actor_id, _role = identity
+    ok = await user_service.change_own_password(
+        db, actor_id, payload.current_password, payload.new_password,
+    )
+    if not ok:
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
     return None

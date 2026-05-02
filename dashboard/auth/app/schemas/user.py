@@ -51,3 +51,14 @@ class UserUpdate(BaseModel):
     full_name: str | None = None
     role: Role | None = None
     is_active: bool | None = None
+
+
+class PasswordResetRequest(BaseModel):
+    """Admin-only — set any user's password without knowing the current one."""
+    new_password: str = Field(min_length=8)
+
+
+class PasswordChangeRequest(BaseModel):
+    """Self-service — current password required to change your own."""
+    current_password: str
+    new_password: str = Field(min_length=8)

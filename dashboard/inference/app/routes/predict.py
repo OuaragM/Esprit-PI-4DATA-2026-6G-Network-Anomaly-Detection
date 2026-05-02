@@ -57,3 +57,34 @@ async def upstream_metrics():
     if resp.status_code >= 400:
         raise HTTPException(status_code=resp.status_code, detail=resp.text)
     return resp.json()
+
+
+@router.get("/history")
+async def upstream_history(limit: int = 50):
+    """Returns the last N predictions from the prediction_log table."""
+    headers = {"X-Api-Key": MLOPS_API_KEY}
+    params = {"limit": str(limit)}
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            resp = await client.get(
+                f"{MLOPS_BASE_URL}/predictions/recent", headers=headers, params=params,
+            )
+        except httpx.RequestError as exc:
+            raise HTTPException(status_code=502, detail=f"moe-ids unreachable: {exc}")
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    return resp.json()
+
+
+@router.get("/sample")
+async def upstream_sample():
+    """Returns one random scored row — used by the dashboard's /realtime feed."""
+    headers = {"X-Api-Key": MLOPS_API_KEY}
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            resp = await client.get(f"{MLOPS_BASE_URL}/predict/sample", headers=headers)
+        except httpx.RequestError as exc:
+            raise HTTPException(status_code=502, detail=f"moe-ids unreachable: {exc}")
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    return resp.json()

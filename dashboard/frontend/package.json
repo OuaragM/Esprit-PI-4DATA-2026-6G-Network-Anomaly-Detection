@@ -6,7 +6,9 @@
     "dev": "next dev -p 3000 -H 0.0.0.0",
     "build": "next build",
     "start": "next start -p 3000 -H 0.0.0.0",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "next": "14.2.3",
@@ -17,6 +19,9 @@
     "@types/node": "20.12.7",
     "@types/react": "18.2.79",
     "@types/react-dom": "18.2.25",
-    "typescript": "5.4.5"
+    "@vitejs/plugin-react": "4.3.1",
+    "happy-dom": "14.12.3",
+    "typescript": "5.4.5",
+    "vitest": "1.6.0"
   }
 }

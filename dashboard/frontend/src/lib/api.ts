@@ -251,6 +251,89 @@ export function clearHistory(): void {
   localStorage.removeItem(HISTORY_KEY);
 }
 
+// ── Server-side history (DB-backed via /api/predict/history) ─────────────
+
+export interface ServerHistoryItem {
+  request_id: string;
+  ts_ms: number | null;
+  model_version: string | null;
+  schema: string | null;
+  n_rows: number | null;
+  n_attack: number | null;
+  n_benign: number | null;
+  mean_probability: number | null;
+  attack_rate: number | null;
+}
+
+export interface ServerHistoryResponse {
+  count: number;
+  items: ServerHistoryItem[];
+}
+
+export async function listServerHistory(limit = 50): Promise<ServerHistoryResponse> {
+  return request<ServerHistoryResponse>(`/api/predict/history?limit=${limit}`);
+}
+
+/**
+ * Merged view: every server-side row is the source of truth, but if the same
+ * request_id is also in localStorage we attach the full prediction payload so
+ * "View →" works without an extra round-trip.
+ */
+export interface MergedHistoryEntry extends ServerHistoryItem {
+  has_full_payload: boolean;
+}
+
+// ── Realtime (one-shot synthetic flow scoring) ───────────────────────────
+
+export interface RealtimeFlow {
+  request_id: string;
+  ts_ms: number;
+  row_index: number;
+  verdict: 0 | 1;
+  probability: number;
+  dominant_expert: string;
+  gate_weights: number[];
+  expert_order: string[];
+  model_version: string;
+  preview: Record<string, unknown>;
+}
+
+export async function getRealtimeSample(): Promise<RealtimeFlow> {
+  return request<RealtimeFlow>("/api/predict/sample");
+}
+
+export async function listMergedHistory(limit = 50): Promise<MergedHistoryEntry[]> {
+  let server: ServerHistoryItem[] = [];
+  try {
+    const r = await listServerHistory(limit);
+    server = r.items ?? [];
+  } catch {
+    // fallback to local-only if server unreachable
+  }
+  const local = listHistory();
+  const localIds = new Set(local.map((e) => e.request_id));
+
+  if (server.length === 0) {
+    return local.map((e) => ({
+      request_id: e.request_id,
+      ts_ms: e.ts,
+      model_version: e.prediction.model_version,
+      schema: e.schema,
+      n_rows: e.n_rows,
+      n_attack: e.prediction.summary.n_attack_predicted,
+      n_benign: e.prediction.summary.n_benign_predicted,
+      mean_probability: e.prediction.summary.mean_probability,
+      attack_rate: e.attack_rate,
+      has_full_payload: true,
+    }));
+  }
+
+  return server.map((s) => ({
+    ...s,
+    has_full_payload: localIds.has(s.request_id),
+  }));
+}
+
 // ── Admin: user management (auth-svc /users + /auth/register via gateway) ──
 
 export interface AdminUser {
@@ -295,6 +378,20 @@ export async function updateUser(id: string, payload: UpdateUserPayload): Promis
 
 export async function deleteUser(id: string): Promise<void> {
   await request<void>(`/api/users/${id}`, { method: "DELETE" });
+}
+
+export async function adminResetPassword(id: string, newPassword: string): Promise<void> {
+  await request<void>(`/api/users/${id}/password`, {
+    method: "POST",
+    body: JSON.stringify({ new_password: newPassword }),
+  });
+}
+
+export async function changeOwnPassword(currentPassword: string, newPassword: string): Promise<void> {
+  await request<void>("/api/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
 }
 
 // ── Report PDF generation (report-svc via gateway) ───────────────────────

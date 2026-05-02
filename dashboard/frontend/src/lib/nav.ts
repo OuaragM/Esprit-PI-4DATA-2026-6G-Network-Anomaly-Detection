@@ -26,6 +26,7 @@ const WORKSPACE_COMMON: NavEntry[] = [
   { section: "Workspace" },
   { key: "dashboard", label: "Dashboard", icon: "dash", href: "/dashboard" },
   { key: "history", label: "History", icon: "history", href: "/history" },
+  { key: "realtime", label: "Realtime feed", icon: "results", href: "/realtime" },
 ];
 
 export const NAV_BY_ROLE: Record<Role, NavEntry[]> = {
@@ -55,12 +56,12 @@ export const NAV_BY_ROLE: Record<Role, NavEntry[]> = {
  * from forbidden routes. Order matches NAV_BY_ROLE plus the implicit /results/*.
  */
 export const ALLOWED_ROUTES: Record<Role, string[]> = {
-  security_analyst: ["/dashboard", "/history", "/results", "/upload"],
+  security_analyst: ["/dashboard", "/history", "/realtime", "/results", "/upload", "/account"],
   admin: [
-    "/dashboard", "/history", "/results", "/upload",
-    "/users", "/settings", "/drift", "/model",
+    "/dashboard", "/history", "/realtime", "/results", "/upload",
+    "/users", "/settings", "/drift", "/model", "/account",
   ],
-  data_scientist: ["/dashboard", "/history", "/results", "/drift", "/model"],
+  data_scientist: ["/dashboard", "/history", "/realtime", "/results", "/drift", "/model", "/account"],
 };
 
 export function canAccess(role: Role, pathname: string): boolean {

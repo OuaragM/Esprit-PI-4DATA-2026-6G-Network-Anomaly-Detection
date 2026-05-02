@@ -93,3 +93,26 @@ def read_recent_predictions(db_url: str | None, window_days: int = 7) -> list[di
     except Exception as exc:
         logger.debug("Failed to read prediction log: %s", exc)
         return []
+
+
+def list_predictions(db_url: str | None, limit: int = 50) -> list[dict]:
+    """Return the most recent N rows from prediction_log, newest first."""
+    if not db_url:
+        return []
+    try:
+        conn = _get_conn(db_url)
+        if conn is None:
+            return []
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT request_id, ts, model_version, schema, n_rows, n_attack, "
+                "n_benign, mean_probability, attack_rate "
+                "FROM prediction_log "
+                "ORDER BY ts DESC LIMIT %s",
+                (int(limit),),
+            )
+            cols = [d[0] for d in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+    except Exception as exc:
+        logger.debug("Failed to list predictions: %s", exc)
+        return []

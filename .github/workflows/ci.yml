@@ -248,6 +248,9 @@ jobs:
         run: npm run lint
         continue-on-error: true
 
+      - name: Unit tests (vitest)
+        run: npm test
+
       - name: Build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8090

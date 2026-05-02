@@ -52,3 +52,33 @@ async def soft_delete_user(db: AsyncSession, user_id: UUID, actor_id: UUID) -> b
     await db.commit()
     await log_action(db, actor_id, "delete_user", target=user.email)
     return True
+
+
+async def admin_reset_password(
+    db: AsyncSession, user_id: UUID, new_password: str, actor_id: UUID
+) -> bool:
+    """Admin sets a user's password without knowing the current one."""
+    user = await db.get(User, user_id)
+    if user is None:
+        return False
+    user.hashed_password = hash_password(new_password)
+    await db.commit()
+    await log_action(db, actor_id, "admin_reset_password", target=user.email)
+    return True
+
+
+async def change_own_password(
+    db: AsyncSession, user_id: UUID, current_password: str, new_password: str
+) -> bool:
+    """Self-service password change. Returns False if current_password is wrong."""
+    from app.services.auth_service import verify_password
+
+    user = await db.get(User, user_id)
+    if user is None:
+        return False
+    if not verify_password(current_password, user.hashed_password):
+        return False
+    user.hashed_password = hash_password(new_password)
+    await db.commit()
+    await log_action(db, user_id, "change_password", target=user.email)
+    return True

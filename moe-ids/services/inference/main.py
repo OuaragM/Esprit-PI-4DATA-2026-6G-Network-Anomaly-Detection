@@ -12,6 +12,7 @@ from moe_ids.logging import configure_logging
 from services.common.predictor import load_predictor_at_startup
 from services.inference.routes_batch import router as batch_router
 from services.inference.routes_health import router as health_router
+from services.inference.routes_history import router as history_router
 from services.inference.routes_metrics import router as metrics_router
 from services.inference.routes_realtime import router as realtime_router
 
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(batch_router)
     app.include_router(realtime_router)
     app.include_router(metrics_router)
+    app.include_router(history_router)
 
     return app
 

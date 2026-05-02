@@ -51,3 +51,13 @@ async def predict_health(request: Request, user: CurrentUser = Depends(get_curre
 @router.get("/predict/metrics")
 async def predict_metrics(request: Request, user: CurrentUser = Depends(get_current_user)):
     return await _forward("GET", "/predict/metrics", request, user)
+
+
+@router.get("/predict/history")
+async def predict_history(request: Request, user: CurrentUser = Depends(get_current_user)):
+    return await _forward("GET", "/predict/history", request, user)
+
+
+@router.get("/predict/sample")
+async def predict_sample(request: Request, user: CurrentUser = Depends(get_current_user)):
+    return await _forward("GET", "/predict/sample", request, user)
