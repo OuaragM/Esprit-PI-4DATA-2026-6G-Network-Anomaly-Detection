@@ -1,25 +1,252 @@
 "use client";
 
-import { Badge, Icon, Kpi, Panel } from "@/components/ui";
+import { useEffect, useMemo, useState } from "react";
+import { Badge, Button, Icon, Kpi, Panel } from "@/components/ui";
 import { AppShell } from "@/components/AppShell";
 import { ROLE_LABELS } from "@/lib/nav";
-import type { Role, User } from "@/lib/api";
+import {
+  type AdminUser,
+  type CreateUserPayload,
+  type Role,
+  type UpdateUserPayload,
+  type User,
+  createUser,
+  deleteUser,
+  listUsers,
+  updateUser,
+} from "@/lib/api";
 
-// Placeholder seed — the auth-svc doesn't yet expose GET /admin/users.
-// Replace this with `await listUsers()` once the endpoint lands.
-const SEED_USERS: { email: string; full_name: string; role: Role; is_active: boolean }[] = [
-  { email: "admin@esprit.tn",      full_name: "Platform Administrator", role: "admin",            is_active: true },
-];
+const ROLES: Role[] = ["security_analyst", "data_scientist", "admin"];
 
-function UsersPage(_: { user: User }) {
-  const counts = SEED_USERS.reduce(
-    (acc, u) => ({
-      total: acc.total + 1,
-      active: acc.active + (u.is_active ? 1 : 0),
-      admins: acc.admins + (u.role === "admin" ? 1 : 0),
-    }),
-    { total: 0, active: 0, admins: 0 },
+function fmtDate(iso: string): string {
+  try { return new Date(iso).toLocaleString(); }
+  catch { return iso; }
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────
+
+type ModalMode =
+  | { kind: "closed" }
+  | { kind: "create" }
+  | { kind: "edit"; target: AdminUser };
+
+function UserModal({
+  mode,
+  onClose,
+  onSaved,
+}: {
+  mode: ModalMode;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = mode.kind === "edit";
+
+  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<Role>("security_analyst");
+  const [active, setActive] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (mode.kind === "edit") {
+      setEmail(mode.target.email);
+      setFullName(mode.target.full_name);
+      setPassword("");
+      setRole(mode.target.role);
+      setActive(mode.target.is_active);
+    } else if (mode.kind === "create") {
+      setEmail("");
+      setFullName("");
+      setPassword("");
+      setRole("security_analyst");
+      setActive(true);
+    }
+    setError(null);
+  }, [mode]);
+
+  if (mode.kind === "closed") return null;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      if (mode.kind === "create") {
+        const payload: CreateUserPayload = {
+          email: email.trim(),
+          password,
+          full_name: fullName.trim(),
+          role,
+        };
+        await createUser(payload);
+      } else if (mode.kind === "edit") {
+        const payload: UpdateUserPayload = {
+          full_name: fullName.trim(),
+          role,
+          is_active: active,
+        };
+        await updateUser(mode.target.id, payload);
+      }
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+        display: "grid", placeItems: "center", zIndex: 100,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="panel"
+        style={{ width: 460, maxWidth: "90vw", border: "1px solid var(--line)" }}
+      >
+        <div className="panel-head">
+          <div className="panel-title">{isEdit ? "Edit user" : "Create user"}</div>
+          <button className="icon-btn" onClick={onClose} type="button"><Icon name="x" /></button>
+        </div>
+        <form onSubmit={submit} className="panel-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <label className="form-row">
+            <span className="muted" style={{ fontSize: 13, width: 100 }}>Email</span>
+            <input
+              type="email" required disabled={isEdit || busy}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="form-input"
+              style={{ flex: 1 }}
+            />
+          </label>
+          <label className="form-row">
+            <span className="muted" style={{ fontSize: 13, width: 100 }}>Full name</span>
+            <input
+              type="text" required minLength={1}
+              value={fullName} disabled={busy}
+              onChange={(e) => setFullName(e.target.value)}
+              className="form-input"
+              style={{ flex: 1 }}
+            />
+          </label>
+          {!isEdit && (
+            <label className="form-row">
+              <span className="muted" style={{ fontSize: 13, width: 100 }}>Password</span>
+              <input
+                type="password" required minLength={8}
+                value={password} disabled={busy}
+                onChange={(e) => setPassword(e.target.value)}
+                className="form-input"
+                style={{ flex: 1 }}
+              />
+            </label>
+          )}
+          <label className="form-row">
+            <span className="muted" style={{ fontSize: 13, width: 100 }}>Role</span>
+            <select
+              value={role} disabled={busy}
+              onChange={(e) => setRole(e.target.value as Role)}
+              className="form-select"
+              style={{ flex: 1 }}
+            >
+              {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+            </select>
+          </label>
+          {isEdit && (
+            <label className="row" style={{ gap: 8, fontSize: 13 }}>
+              <input
+                type="checkbox" checked={active} disabled={busy}
+                onChange={(e) => setActive(e.target.checked)}
+              />
+              Active
+            </label>
+          )}
+          {error && (
+            <div className="alert alert-crit">
+              <Icon name="warn" size={14} />
+              <div className="alert-body" style={{ fontSize: 12 }}>{error}</div>
+            </div>
+          )}
+          <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+            <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+            <Button variant="primary" type="submit" disabled={busy}>
+              {busy ? "Saving…" : isEdit ? "Save changes" : "Create user"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────
+
+function UsersPage({ user: currentUser }: { user: User }) {
+  const [users, setUsers] = useState<AdminUser[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<ModalMode>({ kind: "closed" });
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function refresh() {
+    try {
+      const u = await listUsers();
+      setUsers(u);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load users");
+      setUsers([]);
+    }
+  }
+
+  useEffect(() => { refresh(); }, []);
+
+  const counts = useMemo(() => {
+    if (!users) return { total: 0, active: 0, admins: 0, analysts: 0, scientists: 0 };
+    return {
+      total: users.length,
+      active: users.filter((u) => u.is_active).length,
+      admins: users.filter((u) => u.role === "admin").length,
+      analysts: users.filter((u) => u.role === "security_analyst").length,
+      scientists: users.filter((u) => u.role === "data_scientist").length,
+    };
+  }, [users]);
+
+  async function handleDeactivate(target: AdminUser) {
+    if (target.id === currentUser.id) {
+      alert("You cannot deactivate yourself.");
+      return;
+    }
+    const action = target.is_active ? "deactivate" : "remove";
+    if (!confirm(`Are you sure you want to ${action} ${target.email}?`)) return;
+    setBusyId(target.id);
+    try {
+      await deleteUser(target.id);  // soft-delete (sets is_active=false)
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleReactivate(target: AdminUser) {
+    setBusyId(target.id);
+    try {
+      await updateUser(target.id, { is_active: true });
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Reactivate failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <>
@@ -27,67 +254,108 @@ function UsersPage(_: { user: User }) {
         <div>
           <h1 className="page-title">Users</h1>
           <div className="page-desc">
-            User management for the IDS platform. Account creation and role changes are gated to admins.
+            Create and manage accounts. Roles control which pages and admin actions each user can reach.
           </div>
         </div>
+        <Button variant="primary" icon="upload" onClick={() => setMode({ kind: "create" })}>
+          Create user
+        </Button>
       </div>
 
       <div className="grid dash-grid">
         <div className="span-3"><Kpi label="Total users" value={counts.total} accent /></div>
         <div className="span-3"><Kpi label="Active" value={counts.active} sub={`${counts.total - counts.active} disabled`} /></div>
         <div className="span-3"><Kpi label="Admins" value={counts.admins} /></div>
-        <div className="span-3"><Kpi label="Sign-ups today" value="—" sub="endpoint pending" /></div>
+        <div className="span-3"><Kpi label="Analysts / Scientists" value={`${counts.analysts} / ${counts.scientists}`} /></div>
       </div>
 
       <div style={{ marginTop: 12 }}>
-        <div className="alert" style={{ background: "var(--bg-subtle)" }}>
-          <Icon name="warn" size={14} />
-          <div>
-            <div className="alert-title">Read-only preview</div>
-            <div className="alert-body" style={{ fontSize: 12 }}>
-              The auth-svc does not yet expose <span className="mono">GET /admin/users</span> /
-              <span className="mono"> POST /admin/users</span>. Wire those endpoints in
-              <span className="mono"> dashboard/auth/app/routes/</span> and replace the seed list below
-              with <span className="mono">await listUsers()</span>.
+        <Panel
+          title="Accounts"
+          subtitle={users == null ? "loading…" : `${users.length} total`}
+          actions={<Button variant="ghost" onClick={refresh}>Refresh</Button>}
+        >
+          {error && (
+            <div className="alert alert-crit" style={{ marginBottom: 12 }}>
+              <Icon name="warn" size={14} />
+              <div className="alert-body" style={{ fontSize: 12 }}>{error}</div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <Panel title="Accounts" subtitle={`${SEED_USERS.length} seeded`}>
-          <div className="tbl-wrap">
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>Email</th>
-                  <th>Name</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {SEED_USERS.map((u) => (
-                  <tr key={u.email}>
-                    <td className="mono" style={{ fontSize: 12 }}>{u.email}</td>
-                    <td>{u.full_name}</td>
-                    <td>
-                      <Badge tone={u.role === "admin" ? "critical" : u.role === "data_scientist" ? "accent" : "default"}>
-                        {ROLE_LABELS[u.role]}
-                      </Badge>
-                    </td>
-                    <td>
-                      {u.is_active
-                        ? <Badge tone="ok" dot>active</Badge>
-                        : <Badge tone="default" dot>disabled</Badge>}
-                    </td>
-                    <td className="muted" style={{ fontSize: 12 }}>—</td>
+          )}
+          {users == null ? (
+            <div className="muted" style={{ fontSize: 13, padding: "20px 0" }}>Loading users…</div>
+          ) : users.length === 0 ? (
+            <div className="muted" style={{ fontSize: 13, padding: "20px 0" }}>
+              No users yet. Click <strong>Create user</strong> above.
+            </div>
+          ) : (
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th style={{ textAlign: "right" }}>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {users.map((u) => {
+                    const isMe = u.id === currentUser.id;
+                    const busy = busyId === u.id;
+                    return (
+                      <tr key={u.id} style={{ opacity: u.is_active ? 1 : 0.55 }}>
+                        <td className="mono" style={{ fontSize: 12 }}>
+                          {u.email}{isMe && <span className="muted" style={{ marginLeft: 6 }}>(you)</span>}
+                        </td>
+                        <td>{u.full_name}</td>
+                        <td>
+                          <Badge tone={u.role === "admin" ? "critical" : u.role === "data_scientist" ? "accent" : "default"}>
+                            {ROLE_LABELS[u.role]}
+                          </Badge>
+                        </td>
+                        <td>
+                          {u.is_active
+                            ? <Badge tone="ok" dot>active</Badge>
+                            : <Badge tone="default" dot>disabled</Badge>}
+                        </td>
+                        <td className="muted" style={{ fontSize: 12 }}>{fmtDate(u.created_at)}</td>
+                        <td>
+                          <div className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
+                            <Button
+                              variant="ghost" size="sm"
+                              onClick={() => setMode({ kind: "edit", target: u })}
+                              disabled={busy}
+                            >
+                              Edit
+                            </Button>
+                            {u.is_active ? (
+                              <Button
+                                variant="ghost" size="sm"
+                                onClick={() => handleDeactivate(u)}
+                                disabled={busy || isMe}
+                              >
+                                {busy ? "…" : "Deactivate"}
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost" size="sm"
+                                onClick={() => handleReactivate(u)}
+                                disabled={busy}
+                              >
+                                {busy ? "…" : "Reactivate"}
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Panel>
       </div>
 
@@ -115,6 +383,12 @@ function UsersPage(_: { user: User }) {
           </div>
         </Panel>
       </div>
+
+      <UserModal
+        mode={mode}
+        onClose={() => setMode({ kind: "closed" })}
+        onSaved={refresh}
+      />
     </>
   );
 }

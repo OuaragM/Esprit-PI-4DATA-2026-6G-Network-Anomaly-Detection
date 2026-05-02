@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
 
-Role = Literal["analyst", "admin", "ml_engineer"]
+Role = Literal["security_analyst", "admin", "data_scientist"]
 
 
 class LoginRequest(BaseModel):
@@ -44,7 +44,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
     full_name: str = Field(min_length=1, max_length=255)
-    role: Role = "analyst"
+    role: Role = "security_analyst"
 
 
 class UserUpdate(BaseModel):

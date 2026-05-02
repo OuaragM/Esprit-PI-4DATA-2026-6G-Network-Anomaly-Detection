@@ -1,5 +1,6 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8090";
 const TOKEN_KEY = "sentra_token";
+const REFRESH_TOKEN_KEY = "sentra_refresh_token";
 const USER_KEY = "sentra_user";
 
 export type Role = "security_analyst" | "admin" | "data_scientist";
@@ -41,38 +42,103 @@ export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
 export function getUser(): User | null {
   if (typeof window === "undefined") return null;
   const raw = localStorage.getItem(USER_KEY);
   return raw ? JSON.parse(raw) : null;
 }
 
-export function setSession(token: string, user: User): void {
+export function setSession(token: string, user: User, refreshToken?: string): void {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+}
+
+export function setAccessToken(token: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TOKEN_KEY, token);
 }
 
 export function clearSession(): void {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getToken();
+interface RefreshResponse {
+  access_token: string;
+  token_type?: string;
+}
+
+/**
+ * Mints a fresh access token from the stored refresh token.
+ * Returns the new token, or null if refresh failed (caller should clear session).
+ * Uses bare fetch (not request()) to avoid re-entering the 401 handler.
+ */
+let _refreshInflight: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (_refreshInflight) return _refreshInflight;       // de-dupe parallel callers
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+
+  _refreshInflight = (async () => {
+    try {
+      const r = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (!r.ok) return null;
+      const data = (await r.json()) as RefreshResponse;
+      if (!data.access_token) return null;
+      setAccessToken(data.access_token);
+      return data.access_token;
+    } catch {
+      return null;
+    } finally {
+      _refreshInflight = null;
+    }
+  })();
+
+  return _refreshInflight;
+}
+
+function buildHeaders(init: RequestInit, token: string | null): Headers {
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
   if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
+  return headers;
+}
 
-  const resp = await fetch(`${API_BASE}${path}`, { ...init, headers });
-  if (!resp.ok) {
-    // Auto-redirect on expired/invalid JWT — token is dead, no point staying on the page
-    if (resp.status === 401 && typeof window !== "undefined" && !path.startsWith("/api/auth/")) {
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const isAuthPath = path.startsWith("/api/auth/");
+  const token = getToken();
+
+  let resp = await fetch(`${API_BASE}${path}`, { ...init, headers: buildHeaders(init, token) });
+
+  // On 401, try to mint a fresh access token via the refresh endpoint and
+  // retry the original request once. Only fall back to /login if refresh fails.
+  if (resp.status === 401 && !isAuthPath && typeof window !== "undefined") {
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      resp = await fetch(`${API_BASE}${path}`, { ...init, headers: buildHeaders(init, newToken) });
+    }
+    if (resp.status === 401) {
       clearSession();
       window.location.href = "/login";
       throw new Error("Session expired — please sign in again");
     }
+  }
+
+  if (!resp.ok) {
     let body: unknown;
     try { body = await resp.json(); } catch { body = await resp.text(); }
 
@@ -106,7 +172,7 @@ export async function login(email: string, password: string): Promise<LoginRespo
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
-  setSession(data.access_token, data.user);
+  setSession(data.access_token, data.user, data.refresh_token);
   return data;
 }
 
@@ -183,6 +249,126 @@ export function appendHistory(entry: HistoryEntry): void {
 export function clearHistory(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(HISTORY_KEY);
+}
+
+// ── Admin: user management (auth-svc /users + /auth/register via gateway) ──
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: Role;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface CreateUserPayload {
+  email: string;
+  password: string;
+  full_name: string;
+  role: Role;
+}
+
+export interface UpdateUserPayload {
+  full_name?: string;
+  role?: Role;
+  is_active?: boolean;
+}
+
+export async function listUsers(): Promise<AdminUser[]> {
+  return request<AdminUser[]>("/api/users");
+}
+
+export async function createUser(payload: CreateUserPayload): Promise<AdminUser> {
+  return request<AdminUser>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateUser(id: string, payload: UpdateUserPayload): Promise<AdminUser> {
+  return request<AdminUser>(`/api/users/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  await request<void>(`/api/users/${id}`, { method: "DELETE" });
+}
+
+// ── Report PDF generation (report-svc via gateway) ───────────────────────
+
+export interface ReportRequestPayload {
+  prediction: BatchPrediction;
+  filename?: string;
+  user_email?: string;
+  generated_at_ms?: number;
+}
+
+/**
+ * Calls the report-svc via the gateway, receives a PDF, and triggers a
+ * browser download. Resolves once the file save dialog is shown (or the
+ * download starts in the user's downloads folder).
+ */
+export async function downloadReportPdf(payload: ReportRequestPayload): Promise<void> {
+  const token = getToken();
+  const headers = new Headers();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  headers.set("Content-Type", "application/json");
+
+  let resp = await fetch(`${API_BASE}/api/report/pdf`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  // Mirror request()'s 401 → refresh → retry-once flow for the binary path.
+  if (resp.status === 401 && typeof window !== "undefined") {
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      const retryHeaders = new Headers(headers);
+      retryHeaders.set("Authorization", `Bearer ${newToken}`);
+      resp = await fetch(`${API_BASE}/api/report/pdf`, {
+        method: "POST",
+        headers: retryHeaders,
+        body: JSON.stringify(payload),
+      });
+    }
+    if (resp.status === 401) {
+      clearSession();
+      window.location.href = "/login";
+      throw new Error("Session expired — please sign in again");
+    }
+  }
+
+  if (!resp.ok) {
+    let msg: string;
+    try {
+      const body = (await resp.json()) as { detail?: unknown };
+      msg = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+    } catch {
+      msg = `HTTP ${resp.status}`;
+    }
+    throw new Error(`Report failed: ${msg}`);
+  }
+
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+
+  // Try to honour Content-Disposition filename; fall back to request_id.
+  let filename = `scan-${payload.prediction.request_id.slice(0, 8)}.pdf`;
+  const cd = resp.headers.get("content-disposition") || "";
+  const m = cd.match(/filename="?([^"]+)"?/i);
+  if (m && m[1]) filename = m[1];
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // ── Training ─────────────────────────────────────────────────────────────

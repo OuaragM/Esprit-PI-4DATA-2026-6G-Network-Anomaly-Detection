@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Badge, Button, Icon, Kpi, Panel, fmtN, fmtPct } from "@/components/ui";
 import { AppShell } from "@/components/AppShell";
 import {
+  downloadReportPdf,
   getHistoryEntry,
   type HistoryEntry,
   type User,
@@ -20,11 +21,31 @@ function ResultPage(_: { user: User }) {
   const router = useRouter();
   const id = params?.id ?? "";
   const [entry, setEntry] = useState<HistoryEntry | null | undefined>(undefined);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
     setEntry(getHistoryEntry(id));
   }, [id]);
+
+  async function handleDownloadPdf() {
+    if (!entry) return;
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      await downloadReportPdf({
+        prediction: entry.prediction,
+        filename: entry.filename,
+        user_email: entry.user_email,
+        generated_at_ms: entry.ts,
+      });
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   if (entry === undefined) {
     return <div className="muted" style={{ fontSize: 13, padding: "40px 0" }}>Loading…</div>;
@@ -74,8 +95,26 @@ function ResultPage(_: { user: User }) {
         </div>
         <div className="row" style={{ gap: 8 }}>
           <Button variant="ghost" onClick={() => router.push("/history")}>← History</Button>
+          <Button
+            variant="primary"
+            icon="download"
+            onClick={handleDownloadPdf}
+            disabled={downloading}
+          >
+            {downloading ? "Generating PDF…" : "Download PDF"}
+          </Button>
         </div>
       </div>
+
+      {downloadError && (
+        <div className="alert alert-crit" style={{ marginBottom: 12 }}>
+          <Icon name="warn" size={14} />
+          <div>
+            <div className="alert-title">PDF generation failed</div>
+            <div className="alert-body" style={{ fontSize: 12 }}>{downloadError}</div>
+          </div>
+        </div>
+      )}
 
       {/* Summary KPIs */}
       <div className="grid dash-grid">
