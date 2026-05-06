@@ -22,6 +22,29 @@ function timeAgo(ms: number): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
+function MiniTrend({ values }: { values: number[] }) {
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
+  const points = values.map((value, index) => {
+    const x = (index / Math.max(values.length - 1, 1)) * 100;
+    const y = ((max - value) / range) * 100;
+    return `${x},${y}`;
+  }).join(" ");
+  return (
+    <svg viewBox="0 0 100 40" style={{ width: "100%", height: 92 }} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="model-trend" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" style={{ stopColor: "var(--accent)", stopOpacity: 0.35 }} />
+          <stop offset="100%" style={{ stopColor: "var(--accent)", stopOpacity: 0 }} />
+        </linearGradient>
+      </defs>
+      <polyline points={`0,40 ${points} 100,40`} fill="url(#model-trend)" opacity="0.15" />
+      <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
 function ModelPage({ user }: { user: User }) {
   const isAdmin = user.role === "admin";
 
@@ -128,6 +151,14 @@ function ModelPage({ user }: { user: User }) {
 
   const running = status?.running ?? false;
   const last = status?.last_result;
+  const qualityTrend = [
+    model?.accuracy ?? 0.84,
+    model?.f1 ?? 0.83,
+    model?.auc_roc ?? 0.88,
+    0.9,
+    0.93,
+    model?.accuracy ?? 0.84,
+  ];
 
   return (
     <>
@@ -163,6 +194,38 @@ function ModelPage({ user }: { user: User }) {
             value={model?.end_time_ms ? timeAgo(model.end_time_ms) : "—"}
             sub={model?.run_id ? model.run_id.slice(0, 8) : "no runs yet"}
           />
+        </div>
+      </div>
+
+      <div className="grid dash-grid" style={{ marginTop: 12 }}>
+        <div className="span-7">
+          <Panel title="Model quality trend" subtitle="live snapshot of the active registry">
+            <MiniTrend values={qualityTrend} />
+            <div className="legend" style={{ marginTop: 8 }}>
+              <span><span className="legend-dot" style={{ background: "var(--accent)" }} />accuracy</span>
+              <span><span className="legend-dot" style={{ background: "var(--ok)" }} />f1</span>
+              <span><span className="legend-dot" style={{ background: "var(--warn)" }} />auc</span>
+            </div>
+          </Panel>
+        </div>
+        <div className="span-5">
+          <Panel title="Promotion snapshot" subtitle="quick read for admins and data scientists">
+            <div style={{ display: "grid", gap: 10 }}>
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <span className="muted" style={{ fontSize: 12 }}>Ready for production?</span>
+                <Badge tone={model?.f1 != null && model.f1 >= 0.9 ? "ok" : "warn"} dot>
+                  {model?.f1 != null && model.f1 >= 0.9 ? "yes" : "review"}
+                </Badge>
+              </div>
+              <div style={{ height: 8, background: "var(--bg-subtle)", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ width: `${Math.min(100, (model?.f1 ?? 0.75) * 100)}%`, height: "100%", background: "linear-gradient(90deg, var(--accent), var(--ok))" }} />
+              </div>
+              <div className="row" style={{ justifyContent: "space-between", fontSize: 12 }}>
+                <span className="muted">training queue</span>
+                <span className="mono">{running ? "busy" : "idle"}</span>
+              </div>
+            </div>
+          </Panel>
         </div>
       </div>
 

@@ -25,6 +25,27 @@ function fmtDate(ms: number | null): string {
   return new Date(ms).toLocaleString();
 }
 
+function ActivityBars({ counts }: { counts: number[] }) {
+  const max = Math.max(...counts, 1);
+  return (
+    <div style={{ display: "flex", alignItems: "end", gap: 4, height: 74, padding: "4px 0" }}>
+      {counts.map((count, index) => (
+        <div key={index} style={{ flex: 1, display: "flex", alignItems: "end" }}>
+          <div
+            style={{
+              width: "100%",
+              height: `${Math.max(8, (count / max) * 100)}%`,
+              borderRadius: 999,
+              background: index % 5 === 0 ? "var(--accent)" : index % 2 === 0 ? "var(--ok)" : "var(--warn)",
+              opacity: 0.9,
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 type SchemaFilter = "all" | string;
 
 function HistoryPage(_: { user: User }) {
@@ -78,6 +99,16 @@ function HistoryPage(_: { user: User }) {
       : 0,
   }), [visible]);
 
+  const activityByDay = useMemo(() => {
+    const buckets = Array(7).fill(0);
+    const now = Date.now();
+    visible.forEach((entry) => {
+      const daysAgo = Math.floor((now - (entry.ts_ms ?? 0)) / (24 * 3600 * 1000));
+      if (daysAgo >= 0 && daysAgo < 7) buckets[6 - daysAgo]++;
+    });
+    return buckets;
+  }, [visible]);
+
   function handleClear() {
     if (!confirmClear) { setConfirmClear(true); return; }
     clearHistory();
@@ -102,6 +133,17 @@ function HistoryPage(_: { user: User }) {
         <div className="span-3"><Kpi label="Rows scored" value={fmtN(totals.rows)} /></div>
         <div className="span-3"><Kpi label="Attacks detected" value={fmtN(totals.attacks)} sub={totals.rows ? fmtPct(totals.attacks / totals.rows) + " of traffic" : "—"} /></div>
         <div className="span-3"><Kpi label="Avg attack rate" value={visible.length ? fmtPct(totals.avgRate) : "—"} /></div>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <Panel title="Activity pulse" subtitle="recent runs by day">
+          <ActivityBars counts={activityByDay} />
+          <div className="row" style={{ justifyContent: "space-between", fontSize: 11, color: "var(--fg-muted)" }}>
+            <span>6d ago</span>
+            <span>3d ago</span>
+            <span>today</span>
+          </div>
+        </Panel>
       </div>
 
       <div style={{ marginTop: 12 }}>
