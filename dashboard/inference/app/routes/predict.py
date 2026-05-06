@@ -77,12 +77,15 @@ async def upstream_history(limit: int = 50):
 
 
 @router.get("/sample")
-async def upstream_sample():
-    """Returns one random scored row — used by the dashboard's /realtime feed."""
+async def upstream_sample(scenario: str = "mixed", attack_rate: float = 0.15):
+    """Returns one synthetic scored flow — used by the dashboard's /realtime feed."""
     headers = {"X-Api-Key": MLOPS_API_KEY}
+    params = {"scenario": scenario, "attack_rate": str(attack_rate)}
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            resp = await client.get(f"{MLOPS_BASE_URL}/predict/sample", headers=headers)
+            resp = await client.get(
+                f"{MLOPS_BASE_URL}/predict/sample", headers=headers, params=params,
+            )
         except httpx.RequestError as exc:
             raise HTTPException(status_code=502, detail=f"moe-ids unreachable: {exc}")
     if resp.status_code >= 400:

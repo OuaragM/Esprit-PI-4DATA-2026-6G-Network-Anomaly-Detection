@@ -90,13 +90,24 @@ _last_report: dict | None = None
 @router.post("/drift")
 def run_drift(req: DriftRequest, _auth: AuthDep) -> dict:
     global _last_report
-    artefacts_dir = Path(settings.artefacts_dir) / "production"
+    artefacts_dir = Path(settings.artefacts_dir)
     log_dir = Path(settings.log_dir)
 
     if not artefacts_dir.exists():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Artefacts directory not found: {artefacts_dir}",
+        )
+
+    # baseline_stats.json is required for drift comparison
+    baseline = artefacts_dir / "baseline_stats.json"
+    if not baseline.exists():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"baseline_stats.json missing in {artefacts_dir}. "
+                "Run a training job first so the baseline can be written."
+            ),
         )
 
     try:

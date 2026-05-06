@@ -285,21 +285,57 @@ export interface MergedHistoryEntry extends ServerHistoryItem {
 
 // ── Realtime (one-shot synthetic flow scoring) ───────────────────────────
 
+export type FlowScenario =
+  | "benign"
+  | "syn_flood"
+  | "port_scan"
+  | "ddos"
+  | "exfiltration"
+  | "mixed";
+
+export const FLOW_SCENARIOS: FlowScenario[] = [
+  "mixed",
+  "benign",
+  "syn_flood",
+  "port_scan",
+  "ddos",
+  "exfiltration",
+];
+
+export interface FlowMeta {
+  flow_id: string;
+  src_ip: string;
+  dst_ip: string;
+  src_port: number;
+  dst_port: number;
+  scenario: FlowScenario | string;
+  ground_truth: 0 | 1;
+}
+
 export interface RealtimeFlow {
   request_id: string;
   ts_ms: number;
-  row_index: number;
   verdict: 0 | 1;
   probability: number;
   dominant_expert: string;
   gate_weights: number[];
   expert_order: string[];
   model_version: string;
-  preview: Record<string, unknown>;
+  flow: FlowMeta;
+  ground_truth: 0 | 1;
+  correct: boolean;
 }
 
-export async function getRealtimeSample(): Promise<RealtimeFlow> {
-  return request<RealtimeFlow>("/api/predict/sample");
+export interface RealtimeOptions {
+  scenario?: FlowScenario;
+  attackRate?: number;
+}
+
+export async function getRealtimeSample(opts: RealtimeOptions = {}): Promise<RealtimeFlow> {
+  const params = new URLSearchParams();
+  params.set("scenario", opts.scenario ?? "mixed");
+  params.set("attack_rate", String(opts.attackRate ?? 0.15));
+  return request<RealtimeFlow>(`/api/predict/sample?${params.toString()}`);
 }
 
 export async function listMergedHistory(limit = 50): Promise<MergedHistoryEntry[]> {

@@ -1,20 +1,23 @@
 """
 POST /predict/realtime — placeholder for the Phase-5 Redis-Streams consumer.
-GET  /predict/sample   — score a random row from the cleaned 6G CSV. Used by
-                         the dashboard's /realtime page to simulate a live
-                         feed without bringing up a real producer pipeline.
+GET  /predict/sample   — generates ONE synthetic flow via FlowGenerator and
+                         scores it. Used by the dashboard's /realtime page
+                         to simulate a live feed.
+
+The generator (moe_ids.flow_generator.FlowGenerator) loads the cleaned 6G
+dataset once and samples-and-perturbs from it according to a scenario knob
+("benign" / "syn_flood" / "port_scan" / "ddos" / "exfiltration" / "mixed").
 """
 
 from __future__ import annotations
 
 import os
-import random
 import time
 import uuid
 
-import pandas as pd
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
+from moe_ids.flow_generator import FlowGenerator
 from moe_ids.gate import EXPERT_NAMES
 from moe_ids.schemas import SchemaError
 from services.common.auth import AuthDep
@@ -22,20 +25,18 @@ from services.common.predictor import PredictorDep
 
 router = APIRouter(tags=["inference"])
 
-_SAMPLE_DF: pd.DataFrame | None = None
+_GENERATOR: FlowGenerator | None = None
 
 
-def _load_sample_df() -> pd.DataFrame:
-    global _SAMPLE_DF
-    if _SAMPLE_DF is not None:
-        return _SAMPLE_DF
-    path = os.environ.get("DATA_6G_PATH", "/app/data/AIoT_6G_CLEANED.csv")
-    df = pd.read_csv(path)
-    # Drop the label if present — the model never sees it at inference time
-    if "Label" in df.columns:
-        df = df.drop(columns=["Label"])
-    _SAMPLE_DF = df
-    return df
+def _get_generator() -> FlowGenerator:
+    global _GENERATOR
+    if _GENERATOR is not None:
+        return _GENERATOR
+    path_6g = os.environ.get("DATA_6G_PATH", "/app/data/AIoT_6G_CLEANED.csv")
+    path_5g = os.environ.get("DATA_5G_PATH", "/app/data/Global_CLEANED.csv")
+    seed = int(os.environ.get("FLOW_GENERATOR_SEED", "42"))
+    _GENERATOR = FlowGenerator(path_6g, data_5g_path=path_5g, seed=seed)
+    return _GENERATOR
 
 
 @router.post("/predict/realtime")
@@ -44,27 +45,41 @@ def predict_realtime() -> dict:
 
 
 @router.get("/predict/sample")
-def predict_sample(predictor: PredictorDep, _auth: AuthDep) -> dict:
+def predict_sample(
+    predictor: PredictorDep,
+    _auth: AuthDep,
+    scenario: str = Query("mixed"),
+    attack_rate: float = Query(0.15, ge=0.0, le=1.0),
+) -> dict:
     """
-    Score a random row from the cleaned 6G dataset and return it as a single
-    'flow' record + verdict. Lets the dashboard simulate a live feed.
+    Generate one synthetic flow + score it.
+
+    Query params:
+      scenario     — benign | syn_flood | port_scan | ddos | exfiltration | mixed
+      attack_rate  — only used when scenario=mixed (probability that the next
+                     flow is an attack). Range [0, 1].
     """
+    if scenario not in FlowGenerator.SCENARIOS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown scenario {scenario!r}. Allowed: {FlowGenerator.SCENARIOS}",
+        )
+
     try:
-        df = _load_sample_df()
+        gen = _get_generator()
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Sample dataset unavailable: {exc}",
+            detail=f"Flow generator unavailable: {exc}",
         )
 
-    if df.empty:
+    try:
+        row, meta = gen.generate(scenario=scenario, attack_rate=attack_rate)
+    except Exception as exc:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Sample dataset is empty.",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Flow generation failed: {exc}",
         )
-
-    row_idx = random.randint(0, len(df) - 1)
-    row = df.iloc[[row_idx]]
 
     try:
         result = predictor.predict(row)
@@ -80,28 +95,19 @@ def predict_sample(predictor: PredictorDep, _auth: AuthDep) -> dict:
     proba = float(result.probabilities[0])
     weights = result.gate_weights[0].tolist()
     dominant = EXPERT_NAMES[int(weights.index(max(weights)))] if weights else "—"
-
-    # Pick a small subset of columns to surface as the "flow record"
-    preview_cols = [c for c in row.columns if c.lower() in {
-        "src_ip", "dst_ip", "src_port", "dst_port", "protocol",
-        "flow_duration", "tot_fwd_pkts", "tot_bwd_pkts",
-    }][:8]
-    preview = (
-        row[preview_cols].iloc[0].to_dict() if preview_cols else {}
-    )
+    correct = (pred == meta["ground_truth"])
 
     return {
         "request_id": str(uuid.uuid4()),
         "ts_ms": int(time.time() * 1000),
-        "row_index": row_idx,
         "verdict": pred,
         "probability": round(proba, 6),
         "dominant_expert": dominant,
         "gate_weights": [round(w, 4) for w in weights],
         "expert_order": EXPERT_NAMES,
         "model_version": result.model_version,
-        "preview": {k: (None if pd.isna(v) else v) for k, v in preview.items()},
+        # Synthesised non-feature metadata for the UI
+        "flow": meta,
+        "ground_truth": meta["ground_truth"],
+        "correct": correct,
     }
-
-def predict_realtime() -> dict:
-    return {"detail": "Realtime path is implemented in Phase 5 (Redis Streams consumer)."}
