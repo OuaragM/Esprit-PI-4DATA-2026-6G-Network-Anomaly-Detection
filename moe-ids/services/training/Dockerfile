@@ -12,16 +12,14 @@ COPY mlops/ mlops/
 COPY services/ services/
 COPY scripts/ scripts/
 
-COPY wheels/ wheels/
-RUN pip install --no-cache-dir --no-index --find-links=wheels/ \
-    --prefix=/install \
+# Optional local wheel cache — present on dev machines, absent in CI.
+RUN mkdir -p /tmp/__empty_wheels
+COPY wheels* /tmp/__empty_wheels/wheels/
+RUN pip install --no-cache-dir --find-links=/tmp/__empty_wheels/wheels/ \
+    --prefix=/install --timeout 180 \
     tensorflow xgboost scipy numpy pandas \
     fastapi "uvicorn[standard]" prometheus-client psycopg2-binary \
-    pydantic-settings python-multipart structlog
-
-# Pull sklearn from PyPI so the version pin is honoured even if wheels/ has
-# a different one cached locally.
-RUN pip install --no-cache-dir --timeout 120 --prefix=/install \
+    pydantic-settings python-multipart structlog \
     "scikit-learn==1.6.1" "mlflow-skinny>=2.8" "mlflow>=2.8" "httpx>=0.25"
 
 # ── Stage 2: runtime image ────────────────────────────────────────────────
