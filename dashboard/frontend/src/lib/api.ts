@@ -164,7 +164,25 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
     throw new Error(`HTTP ${resp.status} — ${message}`);
   }
-  return resp.json() as Promise<T>;
+  // Handle 204 No Content + empty bodies — calling resp.json() on those throws.
+  if (resp.status === 204) {
+    return undefined as unknown as T;
+  }
+  const ct = resp.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
+    // Non-JSON 200s (e.g. plain text) — return raw text cast to T
+    const text = await resp.text();
+    return (text as unknown) as T;
+  }
+  const text = await resp.text();
+  if (!text) {
+    return undefined as unknown as T;
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return (text as unknown) as T;
+  }
 }
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
