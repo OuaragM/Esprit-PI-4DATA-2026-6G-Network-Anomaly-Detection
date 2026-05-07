@@ -41,7 +41,7 @@ function Sidebar({ user }: { user: User }) {
     <aside className="sidebar">
       <div className="brand">
         <Mark size={20} />
-        <div className="brand-name">RESINET</div>
+        <div className="brand-name">Verado</div>
         <div className="brand-tag">v0.1</div>
       </div>
 

@@ -3,7 +3,7 @@ import "./globals.css";
 import { I18nProvider } from "@/components/I18nProvider";
 
 export const metadata = {
-  title: "RESINET — 6G Anomaly Detection",
+  title: "Verado — 6G Anomaly Detection",
   description: "AI-driven attack detection for sliced 6G networks",
 };
 

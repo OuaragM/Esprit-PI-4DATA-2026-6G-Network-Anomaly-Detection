@@ -21,7 +21,7 @@ _HTML_TEMPLATE = """\
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Your RESINET 6G IDS Account</title>
+  <title>Your Verado 6G IDS Account</title>
 </head>
 <body style="margin:0;padding:0;background:#0f1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f1117;padding:40px 20px;">
@@ -41,7 +41,7 @@ _HTML_TEMPLATE = """\
                           <span style="font-size:18px;font-weight:800;color:#fff;line-height:36px;">R</span>
                         </td>
                         <td style="padding-left:10px;vertical-align:middle;">
-                          <span style="font-size:16px;font-weight:700;color:#f8fafc;letter-spacing:-0.3px;">RESINET 6G IDS</span>
+                          <span style="font-size:16px;font-weight:700;color:#f8fafc;letter-spacing:-0.3px;">Verado 6G IDS</span>
                         </td>
                       </tr>
                     </table>
@@ -73,7 +73,7 @@ _HTML_TEMPLATE = """\
                       Welcome{greeting}
                     </h1>
                     <p style="margin:0;font-size:14px;color:#94a3b8;line-height:1.65;">
-                      Your account on <strong style="color:#e2e8f0;">RESINET 6G IDS</strong> has been created
+                      Your account on <strong style="color:#e2e8f0;">Verado 6G IDS</strong> has been created
                       by an administrator. Use the credentials below to sign in for the first time.
                     </p>
                   </td>
@@ -155,7 +155,7 @@ _HTML_TEMPLATE = """\
                        style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);
                               color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;
                               padding:13px 36px;border-radius:8px;letter-spacing:0.3px;">
-                      Sign in to RESINET &rarr;
+                      Sign in to Verado &rarr;
                     </a>
                     <p style="margin:10px 0 0;font-size:11px;color:#475569;">
                       Or copy:&nbsp;<span style="color:#6366f1;">{login_url}</span>
@@ -185,7 +185,7 @@ _HTML_TEMPLATE = """\
           <tr>
             <td style="padding:20px 0 0;text-align:center;">
               <p style="margin:0;font-size:11px;color:#334155;line-height:1.7;">
-                RESINET 6G IDS &nbsp;&bull;&nbsp; Esprit School of Engineering &nbsp;&bull;&nbsp; 4th Year PI Project<br>
+                Verado 6G IDS &nbsp;&bull;&nbsp; Esprit School of Engineering &nbsp;&bull;&nbsp; 4th Year PI Project<br>
                 This email was sent because an admin created an account for you.<br>
                 If you did not expect this, please contact your system administrator.
               </p>
@@ -201,7 +201,7 @@ _HTML_TEMPLATE = """\
 """
 
 _TEXT_TEMPLATE = """\
-Welcome to RESINET 6G IDS
+Welcome to Verado 6G IDS
 =========================
 
 Your account has been created by an administrator.
@@ -215,7 +215,7 @@ Sign in at: {login_url}
 You will be required to change your password on first login.
 
 ---
-RESINET 6G IDS · Esprit School of Engineering
+Verado 6G IDS · Esprit School of Engineering
 """
 
 
@@ -249,7 +249,7 @@ async def send_invite_email(
     )
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Your RESINET 6G IDS account credentials"
+    msg["Subject"] = "Your Verado 6G IDS account credentials"
     msg["From"] = settings.SMTP_FROM
     msg["To"] = to_email
     msg.attach(MIMEText(text_body, "plain", "utf-8"))

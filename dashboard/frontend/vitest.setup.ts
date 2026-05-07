@@ -10,8 +10,7 @@ beforeEach(() => {
   }
   // Stub fetch by default — individual tests override with vi.spyOn(globalThis, "fetch").
   if (!("fetch" in globalThis)) {
-    // @ts-expect-error — happy-dom may already define this
-    globalThis.fetch = vi.fn();
+    (globalThis as unknown as Record<string, unknown>).fetch = vi.fn();
   }
 });
 
