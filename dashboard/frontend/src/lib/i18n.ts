@@ -360,7 +360,6 @@ const STRINGS: Record<Locale, Record<string, string>> = { en: EN, fr: FR };
 
 export function t(locale: Locale, key: StringKey | string): string {
   const dict = STRINGS[locale] ?? STRINGS.en;
-  // @ts-expect-error — key is widened to string for graceful fallback
   return dict[key] ?? STRINGS.en[key] ?? key;
 }
 
