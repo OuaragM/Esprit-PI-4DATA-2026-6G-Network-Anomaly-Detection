@@ -11,6 +11,7 @@ export interface User {
   full_name: string;
   role: Role;
   is_active: boolean;
+  must_change_password?: boolean;
 }
 
 export interface LoginResponse {
@@ -396,14 +397,21 @@ export interface AdminUser {
   full_name: string;
   role: Role;
   is_active: boolean;
+  must_change_password: boolean;
   created_at: string;
 }
 
+/** Invite payload — no password; the backend generates and emails one. */
 export interface CreateUserPayload {
   email: string;
-  password: string;
-  full_name: string;
+  full_name?: string;
   role: Role;
+}
+
+export interface InviteResponse {
+  user: AdminUser;
+  email_sent: boolean;
+  email_error: string | null;
 }
 
 export interface UpdateUserPayload {
@@ -416,11 +424,21 @@ export async function listUsers(): Promise<AdminUser[]> {
   return request<AdminUser[]>("/api/users");
 }
 
-export async function createUser(payload: CreateUserPayload): Promise<AdminUser> {
-  return request<AdminUser>("/api/auth/register", {
+export async function createUser(payload: CreateUserPayload): Promise<InviteResponse> {
+  return request<InviteResponse>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+/** Re-fetches the current user from the server and updates localStorage. */
+export async function refreshCurrentUser(): Promise<User> {
+  const u = await request<User>("/api/auth/verify");
+  const stored = getUser();
+  if (stored) {
+    localStorage.setItem("sentra_user", JSON.stringify({ ...stored, ...u }));
+  }
+  return u;
 }
 
 export async function updateUser(id: string, payload: UpdateUserPayload): Promise<AdminUser> {
@@ -432,6 +450,10 @@ export async function updateUser(id: string, payload: UpdateUserPayload): Promis
 
 export async function deleteUser(id: string): Promise<void> {
   await request<void>(`/api/users/${id}`, { method: "DELETE" });
+}
+
+export async function hardDeleteUser(id: string): Promise<void> {
+  await request<void>(`/api/users/${id}/permanent`, { method: "DELETE" });
 }
 
 export async function adminResetPassword(id: string, newPassword: string): Promise<void> {

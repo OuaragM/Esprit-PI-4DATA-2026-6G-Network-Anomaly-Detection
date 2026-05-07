@@ -22,6 +22,7 @@ class UserPublic(BaseModel):
     full_name: str
     role: Role
     is_active: bool
+    must_change_password: bool = False
     created_at: datetime
 
     class Config:
@@ -41,10 +42,24 @@ class AccessTokenResponse(BaseModel):
 
 
 class UserCreate(BaseModel):
+    """Legacy schema kept for internal use; prefer InviteCreate for the API."""
     email: EmailStr
     password: str = Field(min_length=8)
     full_name: str = Field(min_length=1, max_length=255)
     role: Role = "security_analyst"
+
+
+class InviteCreate(BaseModel):
+    """Admin creates a user by email — password is auto-generated and emailed."""
+    email: EmailStr
+    full_name: str = Field(default="", max_length=255)
+    role: Role = "security_analyst"
+
+
+class InviteResponse(BaseModel):
+    user: UserPublic
+    email_sent: bool
+    email_error: str | None = None
 
 
 class UserUpdate(BaseModel):

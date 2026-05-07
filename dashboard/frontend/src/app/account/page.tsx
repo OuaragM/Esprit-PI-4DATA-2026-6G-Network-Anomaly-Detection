@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Badge, Button, Icon, Panel } from "@/components/ui";
 import { AppShell } from "@/components/AppShell";
-import { changeOwnPassword, type User } from "@/lib/api";
+import { changeOwnPassword, refreshCurrentUser, type User } from "@/lib/api";
 import { ROLE_LABELS } from "@/lib/nav";
 
 function AccountPage({ user }: { user: User }) {
@@ -23,6 +23,8 @@ function AccountPage({ user }: { user: User }) {
     setBusy(true);
     try {
       await changeOwnPassword(current, next);
+      // Refresh stored user to clear must_change_password flag from localStorage.
+      await refreshCurrentUser().catch(() => null);
       setSuccess(true);
       setCurrent(""); setNext(""); setConfirm("");
     } catch (err) {
@@ -40,6 +42,18 @@ function AccountPage({ user }: { user: User }) {
           <div className="page-desc">Profile and security settings for the current session.</div>
         </div>
       </div>
+
+      {user.must_change_password && (
+        <div className="alert alert-crit" style={{ marginBottom: 16 }}>
+          <Icon name="warn" size={16} />
+          <div>
+            <div className="alert-title">Password change required</div>
+            <div className="alert-body">
+              You are using a temporary password. Please set a new password before continuing.
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid dash-grid">
         <div className="span-6">

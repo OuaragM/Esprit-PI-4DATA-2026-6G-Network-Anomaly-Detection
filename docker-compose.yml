@@ -62,6 +62,14 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-dashboard}:${POSTGRES_PASSWORD:-dashboard123}@postgres:5432/${POSTGRES_DB:-dashboard}
       JWT_SECRET: ${JWT_SECRET:-supersecretkey}
       JWT_EXPIRY_MINUTES: 60
+      # Gmail SMTP — set SMTP_USER to your Gmail address and SMTP_PASSWORD to an App Password
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@resinet.tn}
+      SMTP_TLS: ${SMTP_TLS:-true}
+      APP_LOGIN_URL: ${APP_LOGIN_URL:-http://localhost:3000/login}
     depends_on:
       postgres: { condition: service_healthy }
     networks: [edge, data]

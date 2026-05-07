@@ -13,9 +13,28 @@ import {
   adminResetPassword,
   createUser,
   deleteUser,
+  hardDeleteUser,
   listUsers,
   updateUser,
 } from "@/lib/api";
+
+function Toast({ message, ok, onDismiss }: { message: string; ok: boolean; onDismiss: () => void }) {
+  return (
+    <div
+      style={{
+        position: "fixed", bottom: 24, right: 24, zIndex: 200,
+        background: ok ? "var(--ok)" : "var(--critical)",
+        color: "#fff", padding: "12px 18px", borderRadius: 8,
+        fontSize: 13, fontWeight: 500, maxWidth: 360,
+        display: "flex", gap: 10, alignItems: "flex-start",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+      }}
+    >
+      <span style={{ flex: 1, lineHeight: 1.5 }}>{message}</span>
+      <button onClick={onDismiss} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", padding: 0, marginTop: 1 }}>✕</button>
+    </div>
+  );
+}
 
 const ROLES: Role[] = ["security_analyst", "data_scientist", "admin"];
 
@@ -38,13 +57,12 @@ function UserModal({
 }: {
   mode: ModalMode;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (toastMsg?: string) => void;
 }) {
   const isEdit = mode.kind === "edit";
 
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
-  const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("security_analyst");
   const [active, setActive] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -54,13 +72,11 @@ function UserModal({
     if (mode.kind === "edit") {
       setEmail(mode.target.email);
       setFullName(mode.target.full_name);
-      setPassword("");
       setRole(mode.target.role);
       setActive(mode.target.is_active);
     } else if (mode.kind === "create") {
       setEmail("");
       setFullName("");
-      setPassword("");
       setRole("security_analyst");
       setActive(true);
     }
@@ -77,11 +93,14 @@ function UserModal({
       if (mode.kind === "create") {
         const payload: CreateUserPayload = {
           email: email.trim(),
-          password,
-          full_name: fullName.trim(),
+          full_name: fullName.trim() || undefined,
           role,
         };
-        await createUser(payload);
+        const resp = await createUser(payload);
+        const toastMsg = resp.email_sent
+          ? `Invitation sent to ${resp.user.email}`
+          : `User created — email could not be delivered (${resp.email_error ?? "unknown error"})`;
+        onSaved(toastMsg);
       } else if (mode.kind === "edit") {
         const payload: UpdateUserPayload = {
           full_name: fullName.trim(),
@@ -89,8 +108,8 @@ function UserModal({
           is_active: active,
         };
         await updateUser(mode.target.id, payload);
+        onSaved();
       }
-      onSaved();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
@@ -113,10 +132,15 @@ function UserModal({
         style={{ width: 460, maxWidth: "90vw", border: "1px solid var(--line)" }}
       >
         <div className="panel-head">
-          <div className="panel-title">{isEdit ? "Edit user" : "Create user"}</div>
+          <div className="panel-title">{isEdit ? "Edit user" : "Invite user"}</div>
           <button className="icon-btn" onClick={onClose} type="button"><Icon name="x" /></button>
         </div>
         <form onSubmit={submit} className="panel-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {!isEdit && (
+            <div className="alert" style={{ background: "var(--bg-subtle)", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 12, color: "var(--fg-muted)", lineHeight: 1.5 }}>
+              A secure temporary password will be generated and emailed to the address below. The user must change it on first login.
+            </div>
+          )}
           <label className="form-row">
             <span className="muted" style={{ fontSize: 13, width: 100 }}>Email</span>
             <input
@@ -130,25 +154,14 @@ function UserModal({
           <label className="form-row">
             <span className="muted" style={{ fontSize: 13, width: 100 }}>Full name</span>
             <input
-              type="text" required minLength={1}
+              type="text"
+              placeholder="Optional"
               value={fullName} disabled={busy}
               onChange={(e) => setFullName(e.target.value)}
               className="form-input"
               style={{ flex: 1 }}
             />
           </label>
-          {!isEdit && (
-            <label className="form-row">
-              <span className="muted" style={{ fontSize: 13, width: 100 }}>Password</span>
-              <input
-                type="password" required minLength={8}
-                value={password} disabled={busy}
-                onChange={(e) => setPassword(e.target.value)}
-                className="form-input"
-                style={{ flex: 1 }}
-              />
-            </label>
-          )}
           <label className="form-row">
             <span className="muted" style={{ fontSize: 13, width: 100 }}>Role</span>
             <select
@@ -178,7 +191,7 @@ function UserModal({
           <div className="row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
             <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
             <Button variant="primary" type="submit" disabled={busy}>
-              {busy ? "Saving…" : isEdit ? "Save changes" : "Create user"}
+              {busy ? "Sending invite…" : isEdit ? "Save changes" : "Send invitation"}
             </Button>
           </div>
         </form>
@@ -194,6 +207,12 @@ function UsersPage({ user: currentUser }: { user: User }) {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<ModalMode>({ kind: "closed" });
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 5000);
+  }
 
   async function refresh() {
     try {
@@ -249,6 +268,20 @@ function UsersPage({ user: currentUser }: { user: User }) {
     }
   }
 
+  async function handleHardDelete(target: AdminUser) {
+    if (!confirm(`Permanently delete ${target.email}? This cannot be undone.`)) return;
+    setBusyId(target.id);
+    try {
+      await hardDeleteUser(target.id);
+      await refresh();
+      showToast(`${target.email} permanently deleted.`, true);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Delete failed", false);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function handleResetPassword(target: AdminUser) {
     const newPwd = prompt(`Set a new password for ${target.email} (min 8 chars):`);
     if (!newPwd) return;
@@ -274,7 +307,7 @@ function UsersPage({ user: currentUser }: { user: User }) {
           </div>
         </div>
         <Button variant="primary" icon="upload" onClick={() => setMode({ kind: "create" })}>
-          Create user
+          Invite user
         </Button>
       </div>
 
@@ -301,7 +334,7 @@ function UsersPage({ user: currentUser }: { user: User }) {
             <div className="muted" style={{ fontSize: 13, padding: "20px 0" }}>Loading users…</div>
           ) : users.length === 0 ? (
             <div className="muted" style={{ fontSize: 13, padding: "20px 0" }}>
-              No users yet. Click <strong>Create user</strong> above.
+              No users yet. Click <strong>Invite user</strong> above.
             </div>
           ) : (
             <div className="tbl-wrap">
@@ -363,13 +396,23 @@ function UsersPage({ user: currentUser }: { user: User }) {
                                 {busy ? "…" : "Deactivate"}
                               </Button>
                             ) : (
-                              <Button
-                                variant="ghost" size="sm"
-                                onClick={() => handleReactivate(u)}
-                                disabled={busy}
-                              >
-                                {busy ? "…" : "Reactivate"}
-                              </Button>
+                              <>
+                                <Button
+                                  variant="ghost" size="sm"
+                                  onClick={() => handleReactivate(u)}
+                                  disabled={busy}
+                                >
+                                  {busy ? "…" : "Reactivate"}
+                                </Button>
+                                <Button
+                                  variant="danger" size="sm"
+                                  onClick={() => handleHardDelete(u)}
+                                  disabled={busy}
+                                  title="Permanently remove this user from the database"
+                                >
+                                  {busy ? "…" : "Delete"}
+                                </Button>
+                              </>
                             )}
                           </div>
                         </td>
@@ -411,8 +454,11 @@ function UsersPage({ user: currentUser }: { user: User }) {
       <UserModal
         mode={mode}
         onClose={() => setMode({ kind: "closed" })}
-        onSaved={refresh}
+        onSaved={(msg) => { refresh(); if (msg) showToast(msg, !msg.toLowerCase().includes("could not")); }}
       />
+      {toast && (
+        <Toast message={toast.msg} ok={toast.ok} onDismiss={() => setToast(null)} />
+      )}
     </>
   );
 }

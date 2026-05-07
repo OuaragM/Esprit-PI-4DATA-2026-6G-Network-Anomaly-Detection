@@ -31,6 +31,11 @@ export function RoleGate({
       router.replace("/login");
       return;
     }
+    // First-login password change required — redirect to /account unless already there.
+    if (u.must_change_password && pathname !== "/account") {
+      router.replace("/account");
+      return;
+    }
     if (roles && !roles.includes(u.role)) {
       router.replace("/dashboard");
       return;

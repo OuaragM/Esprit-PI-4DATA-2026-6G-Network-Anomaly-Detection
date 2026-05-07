@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,13 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.routes.deps import actor_from_headers
 from app.schemas.user import (
+    InviteCreate,
+    InviteResponse,
     PasswordChangeRequest,
     PasswordResetRequest,
-    UserCreate,
     UserPublic,
     UserUpdate,
 )
 from app.services import user_service
+from app.services.email_service import send_invite_email
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["users"])
 
@@ -24,17 +29,39 @@ def _require_admin(identity: tuple[UUID, str]) -> UUID:
     return actor_id
 
 
-@router.post("/auth/register", response_model=UserPublic, status_code=201)
+@router.post("/auth/register", response_model=InviteResponse, status_code=201)
 async def register(
-    payload: UserCreate,
+    payload: InviteCreate,
     identity: tuple[UUID, str] = Depends(actor_from_headers),
     db: AsyncSession = Depends(get_db),
 ):
+    """Admin invites a new user — password is auto-generated and emailed."""
     actor_id = _require_admin(identity)
     existing = await user_service.list_users(db)
     if any(u.email == payload.email for u in existing):
         raise HTTPException(status_code=409, detail="Email already registered")
-    return await user_service.create_user(db, payload, actor_id)
+
+    user, temp_password = await user_service.invite_user(db, payload, actor_id)
+
+    email_sent = False
+    email_error: str | None = None
+    try:
+        await send_invite_email(
+            to_email=user.email,
+            full_name=user.full_name,
+            role=user.role,
+            temp_password=temp_password,
+        )
+        email_sent = True
+    except Exception as exc:
+        log.warning("Failed to send invite email to %s: %s", user.email, exc)
+        email_error = str(exc)
+
+    return InviteResponse(
+        user=UserPublic.model_validate(user),
+        email_sent=email_sent,
+        email_error=email_error,
+    )
 
 
 @router.get("/users", response_model=list[UserPublic])
@@ -78,15 +105,37 @@ async def update_user(
 
 
 @router.delete("/users/{user_id}", status_code=204)
-async def delete_user(
+async def deactivate_user(
     user_id: UUID,
     identity: tuple[UUID, str] = Depends(actor_from_headers),
     db: AsyncSession = Depends(get_db),
 ):
+    """Soft delete — sets is_active=False, row is preserved."""
+    actor_id = _require_admin(identity)
+    if user_id == actor_id:
+        raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
+    ok = await user_service.soft_delete_user(db, user_id, actor_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="User not found")
+    return None
+
+
+@router.delete("/users/{user_id}/permanent", status_code=204)
+async def hard_delete_user(
+    user_id: UUID,
+    identity: tuple[UUID, str] = Depends(actor_from_headers),
+    db: AsyncSession = Depends(get_db),
+):
+    """Hard delete — permanently removes the row. User must be inactive first."""
     actor_id = _require_admin(identity)
     if user_id == actor_id:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
-    ok = await user_service.soft_delete_user(db, user_id, actor_id)
+    user = await user_service.get_user(db, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.is_active:
+        raise HTTPException(status_code=409, detail="Deactivate the user before permanently deleting them")
+    ok = await user_service.hard_delete_user(db, user_id, actor_id)
     if not ok:
         raise HTTPException(status_code=404, detail="User not found")
     return None
