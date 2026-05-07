@@ -77,6 +77,7 @@ export function Button({
   disabled,
   type = "button",
   className = "",
+  title,
 }: {
   variant?: Variant;
   size?: Size;
@@ -86,12 +87,14 @@ export function Button({
   disabled?: boolean;
   type?: "button" | "submit" | "reset";
   className?: string;
+  title?: string;
 }) {
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className={cls("btn", `btn-${variant}`, `btn-${size}`, className)}
     >
       {icon && <Icon name={icon} size={14} />}
