@@ -133,7 +133,7 @@ Rapid smart city digitalization, massive IoT device proliferation, and the shift
 
 ## 🏗️ Architecture
 
-### Layered Microservices Architecture
+### Layered Microservices Architectu
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
