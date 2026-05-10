@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import "./globals.css";
 import { I18nProvider } from "@/components/I18nProvider";
+import { Chatbot } from "@/components/Chatbot";
 
 export const metadata = {
   title: "Verado — 6G Anomaly Detection",
@@ -41,7 +42,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: bootScript }} />
       </head>
       <body>
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider>
+          {children}
+          <Chatbot />
+        </I18nProvider>
       </body>
     </html>
   );

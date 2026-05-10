@@ -326,17 +326,17 @@ function UploadPage({ user }: { user: User }) {
                       const weights = result.gate_weights[i] ?? [];
                       const dom = weights.indexOf(Math.max(...weights));
                       return (
-                        <tr key={i}>
+                        <tr key={i} className={pred === 1 ? "attack-row" : ""}>
                           <td className="mono muted">{String(i).padStart(4, "0")}</td>
                           <td>
                             <Badge tone={pred === 1 ? "critical" : "benign"} dot>
                               {pred === 1 ? "attack" : "benign"}
                             </Badge>
                           </td>
-                          <td className="num">{result.probabilities[i].toFixed(4)}</td>
+                          <td className="num" style={{ fontWeight: pred === 1 ? 600 : 400 }}>{result.probabilities[i].toFixed(4)}</td>
                           <td><span className="mono muted">{result.expert_order[dom]}</span></td>
                           {weights.map((w, k) => (
-                            <td key={k} className="num" style={{ color: k === dom ? "var(--accent)" : undefined }}>
+                            <td key={k} className="num" style={{ color: k === dom ? (pred === 1 ? "var(--critical)" : "var(--accent)") : undefined, fontWeight: pred === 1 && k === dom ? 600 : 400 }}>
                               {w.toFixed(3)}
                             </td>
                           ))}

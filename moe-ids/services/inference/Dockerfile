@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir --find-links=/tmp/__empty_wheels/wheels/ \
     tensorflow xgboost scipy numpy pandas \
     fastapi "uvicorn[standard]" prometheus-client psycopg2-binary \
     pydantic-settings python-multipart structlog \
-    "scikit-learn==1.6.1" "mlflow-skinny>=2.8" "httpx>=0.25"
+    "scikit-learn==1.5.1" "mlflow-skinny>=2.8" "httpx>=0.25"
 
 # ── Stage 2: runtime image ────────────────────────────────────────────────
 FROM python:3.11-slim AS runtime

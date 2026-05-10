@@ -158,6 +158,34 @@ function HealthBadge({ state }: { state: HealthState }) {
   return <Badge tone="critical" dot>unreachable</Badge>;
 }
 
+function ThreatMeter({ rate }: { rate: number }) {
+  const percent = Math.max(0, Math.min(100, rate * 100));
+  let level = "ok";
+  let label = "LOW";
+  if (percent >= 50) {
+    level = "critical";
+    label = "CRITICAL";
+  } else if (percent >= 20) {
+    level = "warn";
+    label = "MEDIUM";
+  } else if (percent > 0) {
+    level = "warn";
+    label = "ELEVATED";
+  }
+
+  return (
+    <div className="threat-meter">
+      <div className="threat-meter-bar">
+        <div
+          className={`threat-meter-fill ${level === "critical" ? "high" : ""}`}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <div className={`threat-meter-label ${level}`}>{label}</div>
+    </div>
+  );
+}
+
 function todayCounts(history: HistoryEntry[]): { runs: number; rows: number; attacks: number } {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
@@ -319,10 +347,30 @@ function DashboardPage({ user }: { user: User }) {
 
         <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(12, minmax(0, 1fr))" }}>
           <div style={{ gridColumn: "span 6" }}>
-            <Panel title="⚠️ Attack Detection Rate" subtitle="Last 24 hours, live trend and pressure overview">
+            <Panel 
+              title={attackRateNow > 0.2 ? "🚨 CRITICAL: Attack Detection Rate" : "⚠️ Attack Detection Rate"} 
+              subtitle="Last 24 hours, live trend and pressure overview"
+            >
               <TrendChart data={attackRateHistory} />
               <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(3, minmax(0, 1fr))", marginTop: 12 }}>
-                <StatRow label="Current" value={fmtPct(attackRateNow)} percent={attackRateNow * 100} />
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, alignItems: "center" }}>
+                    <span style={{ color: "var(--fg-muted)" }}>Current</span>
+                    {attackRateNow > 0.1 && <Badge tone="critical">{fmtPct(attackRateNow)}</Badge>}
+                  </div>
+                  {(attackRateNow <= 0.1 || !attackRateNow) && (
+                    <div style={{ height: 8, background: "var(--bg-elevated)", borderRadius: 999, overflow: "hidden" }}>
+                      <div
+                        style={{
+                          width: `${Math.max(0, Math.min(100, attackRateNow * 100))}%`,
+                          height: "100%",
+                          background: attackRateNow > 0.05 ? "linear-gradient(90deg, var(--critical), var(--warn-fg))" : "linear-gradient(90deg, var(--accent), var(--ok))",
+                          borderRadius: 999,
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
                 <StatRow label="Average" value={fmtPct(attackRateAvg)} percent={attackRateAvg * 100} />
                 <StatRow label="Peak" value={fmtPct(attackRatePeak)} percent={attackRatePeak * 100} />
               </div>
@@ -352,6 +400,10 @@ function DashboardPage({ user }: { user: User }) {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 13 }}>Inference</span>
                   <HealthBadge state={infHealth} />
+                </div>
+                <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12, marginTop: 4 }}>
+                  <div style={{ fontSize: 12, color: "var(--fg-muted)", marginBottom: 8 }}>Network Threat Level</div>
+                  <ThreatMeter rate={attackRateNow} />
                 </div>
               </div>
             </Panel>
@@ -443,22 +495,19 @@ function DashboardPage({ user }: { user: User }) {
                   </thead>
                   <tbody>
                     {history.slice(0, 8).map((entry) => (
-                      <tr key={entry.request_id}>
+                      <tr key={entry.request_id} className={entry.attack_rate > 0.05 ? "attack-row" : ""}>
                         <td style={{ fontSize: 12, color: "var(--fg-muted)" }}>{timeAgo(entry.ts)}</td>
                         <td style={{ fontSize: 12, fontFamily: "monospace" }}>{entry.filename}</td>
                         <td style={{ textAlign: "center" }}>
                           <Badge tone="default" dot>{entry.schema}</Badge>
                         </td>
                         <td style={{ textAlign: "right", fontSize: 12, fontWeight: 500 }}>{fmtN(entry.n_rows)}</td>
-                        <td
-                          style={{
-                            textAlign: "right",
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: entry.attack_rate > 0.05 ? "var(--critical)" : "var(--ok)",
-                          }}
-                        >
-                          {fmtPct(entry.attack_rate)}
+                        <td style={{ textAlign: "right" }}>
+                          {entry.attack_rate > 0.05 ? (
+                            <Badge tone="critical" dot>{fmtPct(entry.attack_rate)}</Badge>
+                          ) : (
+                            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ok)" }}>{fmtPct(entry.attack_rate)}</span>
+                          )}
                         </td>
                         <td style={{ fontSize: 12, color: "var(--fg-muted)" }}>{entry.user_email}</td>
                         <td style={{ textAlign: "center" }}>

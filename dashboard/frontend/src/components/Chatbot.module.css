@@ -1,0 +1,138 @@
+.wrap {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.panel {
+  width: min(360px, calc(100vw - 32px));
+  height: min(520px, calc(100vh - 110px));
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  height: 46px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.iconBtn {
+  border: 1px solid var(--line);
+  background: var(--bg-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+}
+
+.msgBot,
+.msgUser {
+  max-width: 90%;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid var(--line);
+}
+
+.msgBot {
+  align-self: flex-start;
+  background: var(--bg-elev);
+}
+
+.msgUser {
+  align-self: flex-end;
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+
+.quickRow {
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quickBtn {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+
+.quickBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.quickBtn:hover {
+  color: var(--fg);
+}
+
+.composer {
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+}
+
+.input {
+  flex: 1;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 8px 10px;
+  outline: none;
+}
+
+.sendBtn {
+  border: 1px solid var(--accent-border);
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.sendBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fab {
+  border: 1px solid var(--accent-border);
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 600;
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+}
