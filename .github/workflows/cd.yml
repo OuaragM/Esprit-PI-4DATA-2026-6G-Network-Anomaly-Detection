@@ -289,10 +289,18 @@ jobs:
           fi
 
       - name: Write SSH key
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key
+          # Use printf (not echo) so escape sequences in the secret are preserved
+          # verbatim. Ensure exactly one trailing newline — SSH rejects keys
+          # without one as malformed.
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
+          # Sanity-check the key parses before we try to use it
+          ssh-keygen -y -f ~/.ssh/ec2_key > /dev/null \
+            || { echo "::error::EC2_SSH_KEY secret is malformed — re-paste the .pem file (BEGIN/END lines included)"; exit 1; }
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Copy compose files to EC2
