@@ -11,7 +11,7 @@ function answerFor(input: string): string {
     return "Verado est une plateforme IDS intelligente pour detecter les anomalies et cyberattaques dans les reseaux 5G/6G.";
   }
   if (q.includes("connect") || q.includes("login") || q.includes("compte")) {
-    return "Vous pouvez vous connecter via la page login. En demo, utilisez admin@esprit.tn / Admin123! (si ce compte est actif sur votre instance).";
+    return "Vous pouvez vous connecter via la page login avec un compte utilisateur valide. Contactez un administrateur pour obtenir vos identifiants.";
   }
   if (q.includes("partenaire") || q.includes("partner") || q.includes("technologie")) {
     return "Le projet s'appuie sur ESPRIT et des outils comme MLflow, Prometheus, Grafana, Docker et GitHub Actions.";

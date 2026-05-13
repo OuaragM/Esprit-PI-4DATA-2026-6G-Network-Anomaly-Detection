@@ -7,7 +7,6 @@ import { Badge, Icon, Mark, cls } from "@/components/ui";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LangToggle } from "@/components/LangToggle";
-import { Footer } from "@/components/Footer";
 import { useTranslation } from "@/components/I18nProvider";
 import { clearSession, type User } from "@/lib/api";
 import { NAV_BY_ROLE } from "@/lib/nav";
@@ -40,11 +39,19 @@ function Sidebar({ user }: { user: User }) {
 
   return (
     <aside className="sidebar">
-      <Link href="/" className="brand">
-        <Mark size={20} />
+      <a
+        href="/"
+        className="brand"
+        onClick={(e) => {
+          e.preventDefault();
+          clearSession();
+          router.push("/");
+        }}
+      >
+        <Mark size={26} />
         <div className="brand-name">Verado</div>
-        <div className="brand-tag">v0.1</div>
-      </Link>
+        <div className="brand-tag">6G IDS</div>
+      </a>
 
       {items.map((it, i) => {
         if ("section" in it) {
@@ -166,7 +173,6 @@ export function Shell({
       <main className="main">
         <Topbar crumbs={crumbs} status={topbarStatus} actions={topbarActions} />
           <div className="content">{children}</div>
-          <Footer />
       </main>
     </div>
   );

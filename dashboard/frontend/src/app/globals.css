@@ -1,64 +1,69 @@
-/* Verado — Attack Detection Dashboard */
+/* Verado — Attack Detection Dashboard · paper / ink / signal */
 :root {
-  --bg: #fafaf9;
-  --bg-elev: #ffffff;
-  --bg-subtle: #f4f4f2;
-  --bg-hover: #f0efec;
-  --bg-hero: radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 34%), radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.12), transparent 30%);
-  --fg: #18181b;
-  --fg-muted: #71717a;
-  --fg-subtle: #a1a1aa;
-  --line: #e6e6e3;
-  --line-strong: #d4d4d0;
-  --accent: oklch(0.55 0.15 255);
-  --accent-fg: #ffffff;
-  --accent-soft: oklch(0.95 0.04 255);
-  --accent-border: oklch(0.85 0.08 255);
-  --critical: oklch(0.58 0.18 25);
-  --critical-soft: oklch(0.96 0.03 25);
-  --critical-border: oklch(0.85 0.08 25);
-  --warn-fg: oklch(0.60 0.14 60);
-  --warn-soft: oklch(0.97 0.04 85);
-  --warn-border: oklch(0.85 0.09 80);
-  --ok: oklch(0.58 0.12 155);
-  --ok-soft: oklch(0.96 0.03 155);
+  --bg:        oklch(0.97 0.007 85);
+  --bg-elev:   oklch(0.985 0.005 85);
+  --bg-subtle: oklch(0.945 0.008 85);
+  --bg-hover:  oklch(0.93 0.008 85);
+  --bg-hero:   none;
+  --fg:        oklch(0.18 0.018 255);
+  --fg-muted:  oklch(0.42 0.010 255);
+  --fg-subtle: oklch(0.55 0.008 80);
+  --line:        oklch(0.88 0.008 80);
+  --line-strong: oklch(0.82 0.008 80);
+  --accent:        oklch(0.65 0.155 48);
+  --accent-fg:     oklch(0.985 0.005 85);
+  --accent-soft:   oklch(0.93 0.04 48);
+  --accent-border: oklch(0.85 0.10 48);
+  --signal:        oklch(0.65 0.155 48);
+  --signal-soft:   oklch(0.93 0.04 48);
+  --critical:        oklch(0.58 0.18 28);
+  --critical-soft:   oklch(0.96 0.04 28);
+  --critical-border: oklch(0.85 0.10 28);
+  --warn-fg:     oklch(0.62 0.14 70);
+  --warn-soft:   oklch(0.96 0.04 70);
+  --warn-border: oklch(0.85 0.09 70);
+  --ok:        oklch(0.58 0.12 155);
+  --ok-soft:   oklch(0.96 0.03 155);
   --ok-border: oklch(0.82 0.07 155);
-  --benign: oklch(0.58 0.12 155);
-  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  --sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.04);
-  --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-  --shadow-lg: 0 8px 24px rgba(0,0,0,.08), 0 2px 6px rgba(0,0,0,.06);
+  --benign:    oklch(0.58 0.12 155);
+  --mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --sans:    "Inter", system-ui, -apple-system, sans-serif;
+  --display: "Inter Tight", "Inter", system-ui, sans-serif;
+  --shadow-sm: 0 1px 2px rgba(20, 25, 40, 0.04);
+  --shadow:    0 1px 3px rgba(20, 25, 40, 0.06), 0 1px 2px rgba(20, 25, 40, 0.04);
+  --shadow-lg: 0 8px 24px rgba(20, 25, 40, 0.08), 0 2px 6px rgba(20, 25, 40, 0.06);
 }
 
 [data-theme="dark"] {
-  --bg: #0a0a0a;
-  --bg-elev: #121212;
-  --bg-subtle: #161616;
-  --bg-hover: #1c1c1c;
-  --bg-hero: radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 30%), radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.14), transparent 28%), linear-gradient(180deg, rgba(255,255,255,0.02), transparent 38%);
-  --fg: #fafafa;
-  --fg-muted: #a1a1aa;
-  --fg-subtle: #71717a;
-  --line: #222222;
-  --line-strong: #2a2a2a;
-  --accent: oklch(0.72 0.16 255);
-  --accent-fg: #0a0a0a;
-  --accent-soft: oklch(0.28 0.06 255);
-  --accent-border: oklch(0.38 0.08 255);
-  --critical: oklch(0.70 0.19 25);
-  --critical-soft: oklch(0.24 0.06 25);
-  --critical-border: oklch(0.36 0.10 25);
-  --warn-fg: oklch(0.78 0.15 75);
-  --warn-soft: oklch(0.24 0.04 75);
-  --warn-border: oklch(0.36 0.08 75);
-  --ok: oklch(0.72 0.14 155);
-  --ok-soft: oklch(0.22 0.04 155);
+  --bg:        oklch(0.16 0.014 255);
+  --bg-elev:   oklch(0.20 0.014 255);
+  --bg-subtle: oklch(0.22 0.014 255);
+  --bg-hover:  oklch(0.24 0.014 255);
+  --bg-hero:   none;
+  --fg:        oklch(0.97 0.007 85);
+  --fg-muted:  oklch(0.72 0.010 80);
+  --fg-subtle: oklch(0.55 0.010 80);
+  --line:        oklch(0.30 0.014 255);
+  --line-strong: oklch(0.36 0.014 255);
+  --accent:        oklch(0.72 0.13 48);
+  --accent-fg:     oklch(0.16 0.014 255);
+  --accent-soft:   oklch(0.30 0.08 48);
+  --accent-border: oklch(0.40 0.10 48);
+  --signal:        oklch(0.72 0.13 48);
+  --signal-soft:   oklch(0.30 0.08 48);
+  --critical:        oklch(0.70 0.19 28);
+  --critical-soft:   oklch(0.28 0.08 28);
+  --critical-border: oklch(0.38 0.12 28);
+  --warn-fg:     oklch(0.78 0.14 70);
+  --warn-soft:   oklch(0.28 0.06 70);
+  --warn-border: oklch(0.38 0.10 70);
+  --ok:        oklch(0.72 0.14 155);
+  --ok-soft:   oklch(0.24 0.05 155);
   --ok-border: oklch(0.36 0.08 155);
-  --benign: oklch(0.72 0.14 155);
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
-  --shadow: 0 1px 3px rgba(0,0,0,.35);
-  --shadow-lg: 0 8px 24px rgba(0,0,0,.5);
+  --benign:    oklch(0.72 0.14 155);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow:    0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
 * { box-sizing: border-box; }
@@ -99,11 +104,11 @@ body::before {
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(circle at center, rgba(0,0,0,0.7), transparent 85%);
-  opacity: 0.24;
+    radial-gradient(circle at 1px 1px, oklch(0.85 0.008 80) 1px, transparent 0);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+  mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.55), transparent 80%);
+  opacity: 0.45;
 }
 button, input, select { font: inherit; color: inherit; }
 
@@ -118,67 +123,76 @@ button, input, select { font: inherit; color: inherit; }
   top: 0; left: 0; bottom: 0;
   width: 56px;
   z-index: 50;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
   backdrop-filter: blur(16px);
   border-right: 1px solid var(--line);
   padding: 14px 8px;
   display: flex; flex-direction: column; gap: 2px;
   overflow: hidden;
-  transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.28s ease,
-              background 0.28s ease;
+  transition: width 0.14s cubic-bezier(0.32, 0.72, 0.36, 1),
+              box-shadow 0.14s ease;
 }
 .sidebar:hover {
   width: 216px;
-  background: color-mix(in srgb, var(--bg) 96%, transparent);
-  box-shadow: 4px 0 28px rgba(0, 0, 0, 0.18),
+  box-shadow: 4px 0 28px rgba(20, 25, 40, 0.10),
               1px 0 0 var(--line);
 }
 
-/* ── Brand ── */
+/* ── Brand · fixed icon column matches nav-items ── */
 .brand {
-  display: flex; align-items: center; gap: 8px;
-  padding: 4px 4px 14px;
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 14px;
   color: var(--fg);
   flex-shrink: 0;
+  text-decoration: none;
+}
+.brand > svg:first-child {
+  justify-self: center;
+  color: var(--fg);
 }
 .brand-name {
-  font-family: var(--mono);
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   white-space: nowrap;
 }
 .brand-tag {
-  font-size: 10px;
-  color: var(--fg-subtle);
-  letter-spacing: 0.1em;
+  font-size: 9.5px;
+  color: var(--fg-muted);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   margin-left: auto;
   font-family: var(--mono);
   white-space: nowrap;
+  border: 1px solid var(--line);
+  padding: 2px 6px 1px;
+  border-radius: 3px;
+  background: var(--bg);
 }
+.brand svg { color: var(--fg); }
 
-/* ── Collapsed: hide all text, show only icons ── */
+/* ── Collapsed: hide all text, show only icons (text in grid col 2) ── */
 .sidebar .brand-name,
 .sidebar .brand-tag,
 .sidebar .nav-item > span,
 .sidebar .nav-item .nav-count,
 .sidebar .user-info {
   opacity: 0;
-  max-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
   pointer-events: none;
-  transition: opacity 0.12s ease 0s,
-              max-width 0.26s cubic-bezier(0.4, 0, 0.2, 1) 0s;
+  white-space: nowrap;
+  transition: opacity 0.10s ease;
 }
 .sidebar .nav-section-label {
-  max-height: 0;
-  overflow: hidden;
+  /* Reserve the same vertical space at all times so icons don't shift
+     when the sidebar expands. Only the text opacity changes on hover. */
+  padding: 14px 0 6px;
+  margin-left: 8px;
   opacity: 0;
-  padding-top: 0; padding-bottom: 0;
-  transition: max-height 0.26s ease, padding 0.26s ease, opacity 0.14s ease;
+  transition: opacity 0.10s ease;
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--fg-subtle); font-weight: 500;
   white-space: nowrap;
@@ -191,41 +205,52 @@ button, input, select { font: inherit; color: inherit; }
 .sidebar:hover .nav-item .nav-count,
 .sidebar:hover .user-info {
   opacity: 1;
-  max-width: 160px;
   pointer-events: auto;
-  transition: opacity 0.2s ease 0.1s,
-              max-width 0.26s cubic-bezier(0.4, 0, 0.2, 1) 0s;
+  transition: opacity 0.12s ease 0.06s;
 }
 .sidebar:hover .nav-section-label {
-  max-height: 40px;
-  padding: 12px 8px 4px;
   opacity: 1;
+  transition: opacity 0.12s ease 0.06s;
 }
 
-/* ── Nav items ── */
+/* ── Nav items · grid keeps icon centered in a fixed 40px slot ── */
 .nav-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px; border-radius: 6px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0;
+  height: 36px;
+  padding: 0;
+  border-radius: 6px;
   color: var(--fg-muted);
   cursor: pointer;
   font-size: 13px;
   user-select: none;
   position: relative;
   flex-shrink: 0;
-  transition: background .15s ease, color .15s ease,
-              transform .15s ease, padding .26s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background .12s ease, color .12s ease;
 }
-.sidebar:hover .nav-item { padding: 6px 8px; }
-.nav-item:hover { background: var(--bg-hover); color: var(--fg); transform: translateX(2px); }
+.nav-item > svg:first-child {
+  justify-self: center;
+}
+.nav-item:hover { background: var(--bg-hover); color: var(--fg); }
 .nav-item.active { background: var(--bg-hover); color: var(--fg); }
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 8px; bottom: 8px;
+  width: 2px;
+  background: var(--signal, var(--accent));
+  border-radius: 2px;
+}
 .nav-item .nav-count {
-  margin-left: auto;
   font-size: 10px;
   font-family: var(--mono);
   color: var(--fg-subtle);
   background: var(--bg-subtle);
-  padding: 1px 6px; border-radius: 10px;
-  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-right: 10px;
 }
 .nav-item.active .nav-count { background: var(--accent-soft); color: var(--accent); }
 
@@ -237,22 +262,38 @@ button, input, select { font: inherit; color: inherit; }
   flex-shrink: 0;
 }
 .user-card {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 0;
+  align-items: center;
+  gap: 0;
+  height: 44px;
+  padding: 0;
   border-radius: 6px;
   cursor: pointer;
-  transition: background 0.15s ease, padding 0.26s ease;
+  overflow: hidden;
+  transition: background 0.12s ease, grid-template-columns 0.14s ease;
 }
-.sidebar:hover .user-card { padding: 6px 8px; }
+.sidebar:hover .user-card {
+  grid-template-columns: 40px minmax(0, 1fr) 34px;
+}
 .user-card:hover { background: var(--bg-hover); }
 .avatar {
   width: 28px; height: 28px; border-radius: 50%;
   background: var(--accent-soft); color: var(--accent);
   display: grid; place-items: center;
   font-size: 11px; font-weight: 600;
-  flex-shrink: 0;
+  justify-self: center;
 }
-.user-info { min-width: 0; flex: 1; overflow: hidden; }
+.user-info { min-width: 0; overflow: hidden; }
+.user-card > svg:last-child {
+  justify-self: center;
+  opacity: 0;
+  transition: opacity 0.10s ease;
+}
+.sidebar:hover .user-card > svg:last-child {
+  opacity: 1;
+  transition: opacity 0.12s ease 0.06s;
+}
 .user-name { font-size: 12px; font-weight: 500; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .user-role { font-size: 10px; color: var(--fg-subtle); text-transform: uppercase; letter-spacing: 0.06em; font-family: var(--mono); white-space: nowrap; }
 

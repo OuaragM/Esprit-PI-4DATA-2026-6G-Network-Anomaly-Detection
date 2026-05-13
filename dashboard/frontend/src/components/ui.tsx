@@ -18,11 +18,37 @@ export function fmtPct(n: number, d = 1): string {
 }
 
 export function Mark({ size = 20 }: { size?: number }) {
+  // For small UI sizes (sidebar, badges) we need slightly thicker strokes and
+  // bigger node dots so the Neural V geometry remains readable. The hero/landing
+  // calls this component with size >= 60 and gets the original delicate weights.
+  const compact = size < 48;
+  const thinSW = compact ? 12 : 2.4;
+  const thickSW = compact ? 18 : 3.8;
+  const dotSm = compact ? 14 : 8;
+  const dotMd = compact ? 16 : 10;
+  const dotLg = compact ? 22 : 14;
   return (
-    <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-      <rect x="1" y="1" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.4" opacity=".35" />
-      <rect x="5" y="5" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.4" opacity=".7" />
-      <rect x="8.5" y="8.5" width="3" height="3" fill="currentColor" />
+    <svg width={size} height={size} viewBox="0 0 240 240" fill="none" style={{ ["--node-out" as string]: "var(--signal, #D08243)" }}>
+      <g stroke="currentColor" fill="none" opacity={compact ? 0.6 : 0.5} strokeWidth={thinSW} strokeLinecap="round">
+        <line x1="44" y1="48" x2="84" y2="124" />
+        <line x1="44" y1="48" x2="156" y2="124" />
+        <line x1="120" y1="48" x2="84" y2="124" />
+        <line x1="120" y1="48" x2="156" y2="124" />
+        <line x1="196" y1="48" x2="84" y2="124" />
+        <line x1="196" y1="48" x2="156" y2="124" />
+      </g>
+      <g stroke="currentColor" fill="none" strokeWidth={thickSW} strokeLinecap="round">
+        <line x1="84" y1="124" x2="120" y2="200" />
+        <line x1="156" y1="124" x2="120" y2="200" />
+      </g>
+      <g fill="currentColor">
+        <circle cx="44" cy="48" r={dotSm} />
+        <circle cx="120" cy="48" r={dotSm} />
+        <circle cx="196" cy="48" r={dotSm} />
+        <circle cx="84" cy="124" r={dotMd} />
+        <circle cx="156" cy="124" r={dotMd} />
+        <circle cx="120" cy="200" r={dotLg} fill="var(--node-out)" />
+      </g>
     </svg>
   );
 }

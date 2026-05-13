@@ -1,10 +1,11 @@
 import logging
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.user import User
+from app.models.biometric import BiometricData
+from app.models.user import AuditLog, User
 from app.schemas.user import InviteCreate, UserCreate, UserUpdate
 from app.services.auth_service import hash_password, log_action
 from app.services.password_gen import generate_temp_password
@@ -85,11 +86,22 @@ async def soft_delete_user(db: AsyncSession, user_id: UUID, actor_id: UUID) -> b
 
 
 async def hard_delete_user(db: AsyncSession, user_id: UUID, actor_id: UUID) -> bool:
-    """Permanently removes the user row. Only allowed on inactive accounts."""
+    """Permanently removes the user row. Only allowed on inactive accounts.
+
+    The audit_log and biometric_data tables have FKs to users.id without
+    ON DELETE actions, so we manually break those references before the
+    user row can be removed:
+      - audit_log.actor_id is nullable → set to NULL (preserve history)
+      - biometric_data.user_id is NOT NULL → delete the rows
+    """
     user = await db.get(User, user_id)
     if user is None:
         return False
     email = user.email
+    await db.execute(
+        update(AuditLog).where(AuditLog.actor_id == user_id).values(actor_id=None)
+    )
+    await db.execute(delete(BiometricData).where(BiometricData.user_id == user_id))
     await db.delete(user)
     await db.commit()
     await log_action(db, actor_id, "hard_delete_user", target=email)

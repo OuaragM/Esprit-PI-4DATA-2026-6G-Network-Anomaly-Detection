@@ -140,8 +140,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (!resp.ok) {
-    let body: unknown;
-    try { body = await resp.json(); } catch { body = await resp.text(); }
+    // Read the body once as text, then try parsing as JSON. Calling resp.json()
+    // first and resp.text() in a catch fails with "body stream already read".
+    const raw = await resp.text();
+    let body: unknown = raw;
+    if (raw) {
+      try { body = JSON.parse(raw); } catch { /* keep raw text */ }
+    }
 
     // Unwrap FastAPI-style {"detail": ...} where ... is a string OR a dict OR an array
     let detail: unknown = body;

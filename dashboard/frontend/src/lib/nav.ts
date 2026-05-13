@@ -23,7 +23,6 @@ export const ROLE_LABELS: Record<Role, string> = {
 };
 
 const WORKSPACE_COMMON: NavEntry[] = [
-  { key: "home", label: "Accueil", icon: "home", href: "/" },
   { section: "Workspace" },
   { key: "dashboard", label: "Dashboard", icon: "dash", href: "/dashboard" },
   { key: "history", label: "History", icon: "history", href: "/history" },

@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import "./globals.css";
 import { I18nProvider } from "@/components/I18nProvider";
-import { Chatbot } from "@/components/Chatbot";
 
 export const metadata = {
   title: "Verado — 6G Anomaly Detection",
@@ -36,7 +35,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
           rel="stylesheet"
         />
         <script dangerouslySetInnerHTML={{ __html: bootScript }} />
@@ -44,7 +43,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <I18nProvider>
           {children}
-          <Chatbot />
         </I18nProvider>
       </body>
     </html>
