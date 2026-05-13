@@ -293,14 +293,33 @@ jobs:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          # Use printf (not echo) so escape sequences in the secret are preserved
-          # verbatim. Ensure exactly one trailing newline — SSH rejects keys
-          # without one as malformed.
-          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2_key
+          # Strip Windows CR characters that sneak in when a .pem is pasted
+          # from a Windows editor into a GitHub secret. SSH rejects keys with
+          # CR in them as malformed. Then ensure exactly one trailing newline.
+          printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
-          # Sanity-check the key parses before we try to use it
-          ssh-keygen -y -f ~/.ssh/ec2_key > /dev/null \
-            || { echo "::error::EC2_SSH_KEY secret is malformed — re-paste the .pem file (BEGIN/END lines included)"; exit 1; }
+
+          # Diagnostics (safe — doesn't leak the key body)
+          echo "----- key shape -----"
+          echo "first line : $(head -1 ~/.ssh/ec2_key)"
+          echo "last line  : $(tail -1 ~/.ssh/ec2_key)"
+          echo "line count : $(wc -l < ~/.ssh/ec2_key)"
+          echo "byte count : $(wc -c < ~/.ssh/ec2_key)"
+          echo "---------------------"
+
+          # Validate
+          if ! ssh-keygen -y -f ~/.ssh/ec2_key > /dev/null 2> /tmp/ssh-err; then
+            echo "::error::EC2_SSH_KEY secret is malformed."
+            echo "Reason:" && cat /tmp/ssh-err
+            echo ""
+            echo "Fixes to try, in order:"
+            echo "  1. Open seif-ssh.pem in VS Code (NOT Notepad)."
+            echo "  2. Select all (Ctrl+A) — including the -----BEGIN/END----- lines."
+            echo "  3. Delete the existing EC2_SSH_KEY secret on GitHub, then re-add it."
+            echo "  4. Paste — VS Code preserves Unix line endings."
+            exit 1
+          fi
+          echo "✓ Key parses cleanly."
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Prepare deploy bundle
