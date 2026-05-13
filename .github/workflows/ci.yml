@@ -225,9 +225,11 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────────────
   # Frontend type-check + production build
+  # Vercel builds & deploys this from main on its own — this job is just a
+  # sanity check on PRs so we never push a broken build into Vercel.
   # ──────────────────────────────────────────────────────────────────────
   frontend:
-    name: Frontend build
+    name: Frontend build (Vercel preflight)
     runs-on: ubuntu-latest
     defaults:
       run:

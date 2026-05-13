@@ -1,40 +1,54 @@
 name: CD
 
+# Builds the 8 backend services for linux/arm64 (EC2 Graviton target) and
+# pushes them to GitHub Container Registry (ghcr.io). The frontend is excluded
+# — it deploys to Vercel via its own pipeline.
+#
+# Optional EC2 deploy: set the EC2_HOST, EC2_USER, EC2_SSH_KEY repo secrets
+# and pass deploy_ec2=true to roll the new tag onto the instance.
+
 on:
   workflow_dispatch:
     inputs:
       tag:
         description: "Image tag to publish (default: short git SHA)"
         required: false
-      experiment_name:
-        description: "MLflow experiment name for the deploy training run"
-        required: false
-        default: "unified_moe_cd"
       run_training:
-        description: "Run a training job and log to MLflow as part of the deploy"
+        description: "Run a training job and log to MLflow"
         required: false
         default: "true"
-      boot_stack:
-        description: "Boot the full stack on the runner (smoke-only — runner is ephemeral)"
+      deploy_ec2:
+        description: "SSH to EC2 and roll the new images (needs EC2_* secrets)"
         required: false
-        default: "true"
+        default: "false"
+  push:
+    branches: [main]
+    paths:
+      - "moe-ids/**"
+      - "dashboard/**"
+      - ".github/workflows/cd.yml"
+      - "docker-compose.yml"
+      - "docker-compose.prod.yml"
 
 concurrency:
-  group: cd
+  group: cd-${{ github.ref }}
   cancel-in-progress: false
 
 env:
   IMAGE_TAG: ${{ github.event.inputs.tag || github.sha }}
+  REGISTRY: ghcr.io
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────
-  # Build and push every back/front image to DockerHub in parallel
+  # Build linux/arm64 backend images and push to ghcr.io
+  # (frontend is excluded — Vercel handles it)
   # ──────────────────────────────────────────────────────────────────────
   build-and-push:
-    name: Build & push (${{ matrix.image }})
+    name: Build arm64 · ${{ matrix.image }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -63,31 +77,41 @@ jobs:
           - image: dashboard-report
             context: ./dashboard/report
             dockerfile: Dockerfile
-          - image: dashboard-frontend
-            context: ./dashboard/frontend
-            dockerfile: Dockerfile
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: true
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Lowercase repo owner
+        id: repo
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
-      - name: Login DockerHub
+      - name: Set up QEMU (cross-build)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to ghcr.io
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USER }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & push ${{ matrix.image }}
+      - name: Build & push ${{ matrix.image }} (linux/arm64)
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.context }}/${{ matrix.dockerfile }}
+          platforms: linux/arm64
           push: true
+          provenance: false
           tags: |
-            ${{ secrets.DOCKERHUB_USER }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
-            ${{ secrets.DOCKERHUB_USER }}/${{ matrix.image }}:latest
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/${{ matrix.image }}:latest
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,scope=${{ matrix.image }},mode=max
 
@@ -97,7 +121,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────
   train-and-log:
     name: Train + log to MLflow
-    if: github.event.inputs.run_training != 'false'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_training != 'false'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -163,7 +187,7 @@ jobs:
             --gate-epochs 5 \
             --xgb-n-estimators 100 \
             --mlflow-tracking-uri http://localhost:5000 \
-            --experiment "${{ github.event.inputs.experiment_name }}" \
+            --experiment unified_moe_cd \
             --no-pushgateway
 
       - name: Upload trained artefacts
@@ -180,99 +204,57 @@ jobs:
           python scripts/promote.py \
             --latest \
             --to production \
-            --experiment "${{ github.event.inputs.experiment_name }}" \
+            --experiment unified_moe_cd \
             --mlflow-tracking-uri http://localhost:5000 \
-          || echo "::warning::Auto-promotion skipped (thresholds not met or MLflow registry unavailable)"
+          || echo "::warning::Auto-promotion skipped (thresholds not met or registry unavailable)"
 
       - name: Dump MLflow log on failure
         if: failure()
         run: tail -200 /tmp/mlflow.log || true
 
   # ──────────────────────────────────────────────────────────────────────
-  # Boot the full stack on the runner using the just-pushed images
-  # (smoke test only — runner is ephemeral and tears down after the job).
-  # ──────────────────────────────────────────────────────────────────────
-  deploy-and-smoke-test:
-    name: Boot stack from DockerHub + smoke test
-    if: github.event.inputs.boot_stack != 'false'
-    needs: [build-and-push, train-and-log]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Pull pushed images
-        env:
-          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-        run: |
-          for img in moe-inference moe-training moe-monitoring \
-                     dashboard-gateway dashboard-auth dashboard-inference \
-                     dashboard-upload dashboard-report dashboard-frontend; do
-            docker pull "$DOCKERHUB_USER/$img:${{ env.IMAGE_TAG }}"
-          done
-
-      - name: Boot stack via docker-compose.prod.yml
-        env:
-          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
-          INTERNAL_API_KEY: ci-key
-          JWT_SECRET: ci-secret
-        run: |
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-          docker compose ps
-
-      - name: Wait for gateway + frontend to be reachable
-        run: |
-          for i in {1..30}; do
-            if curl -fsS http://localhost:8090/health > /dev/null \
-               && curl -fsS http://localhost:3000 > /dev/null; then
-              echo "Gateway + frontend up after ${i} attempts"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "::error::Stack failed to come up"
-          docker compose logs --tail=200
-          exit 1
-
-      - name: Smoke test the gateway routes
-        run: |
-          curl -fsS http://localhost:8090/health | tee /tmp/gw_health.json
-          curl -fsS http://localhost:5000/health | tee /tmp/mlflow_health.txt
-          curl -fsS http://localhost:3001/api/health | tee /tmp/grafana_health.json || true
-
-      - name: Dump logs on failure
-        if: failure()
-        run: docker compose logs --tail=300
-
-      - name: Tear down
-        if: always()
-        run: docker compose down -v || true
-
-  # ──────────────────────────────────────────────────────────────────────
-  # Trivy security scan on the just-pushed images (HIGH/CRITICAL gate)
+  # Trivy security scan on the just-pushed ghcr images
   # ──────────────────────────────────────────────────────────────────────
   security-scan:
-    name: Trivy image scan
+    name: Trivy · ${{ matrix.image }}
     needs: build-and-push
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read
       security-events: write
     strategy:
       fail-fast: false
       matrix:
-        image: [moe-inference, moe-training, moe-monitoring,
-                dashboard-gateway, dashboard-auth, dashboard-inference,
-                dashboard-upload, dashboard-report, dashboard-frontend]
+        image:
+          - moe-inference
+          - moe-training
+          - moe-monitoring
+          - dashboard-gateway
+          - dashboard-auth
+          - dashboard-inference
+          - dashboard-upload
+          - dashboard-report
     steps:
-      - name: Run Trivy on ${{ matrix.image }}
+      - name: Lowercase repo owner
+        id: repo
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Login to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trivy scan ${{ matrix.image }}
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ secrets.DOCKERHUB_USER }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
+          image-ref: ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
           format: sarif
           output: trivy-${{ matrix.image }}.sarif
           severity: CRITICAL,HIGH
-          exit-code: "0"   # report only — flip to "1" later to block on HIGH/CRITICAL
+          exit-code: "0"
           ignore-unfixed: true
 
       - name: Upload SARIF to GitHub Security
@@ -284,23 +266,73 @@ jobs:
         continue-on-error: true
 
   # ──────────────────────────────────────────────────────────────────────
-  # Slack notification — fires once at the end with overall status.
-  # No-ops cleanly if SLACK_WEBHOOK_URL secret isn't set.
+  # Optional: SSH to the EC2 instance and roll the new images
+  # Requires repo secrets: EC2_HOST, EC2_USER (default: ubuntu), EC2_SSH_KEY
+  # ──────────────────────────────────────────────────────────────────────
+  deploy-ec2:
+    name: Deploy to EC2
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_ec2 == 'true'
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lowercase repo owner
+        id: repo
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Verify deploy secrets are present
+        run: |
+          if [ -z "${{ secrets.EC2_HOST }}" ] || [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
+            echo "::error::EC2_HOST and EC2_SSH_KEY secrets are required for deploy_ec2=true"
+            exit 1
+          fi
+
+      - name: Write SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Copy compose files to EC2
+        run: |
+          scp -i ~/.ssh/ec2_key \
+            docker-compose.yml docker-compose.prod.yml \
+            "${{ secrets.EC2_USER || 'ubuntu' }}@${{ secrets.EC2_HOST }}:~/verado/"
+
+      - name: Roll new images on EC2
+        env:
+          GHCR_USER: ${{ steps.repo.outputs.owner }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+        run: |
+          ssh -i ~/.ssh/ec2_key \
+            "${{ secrets.EC2_USER || 'ubuntu' }}@${{ secrets.EC2_HOST }}" \
+            "set -e
+             cd ~/verado
+             echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+             export GHCR_OWNER='$GHCR_USER'
+             export IMAGE_TAG='$IMAGE_TAG'
+             docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+             docker image prune -f
+             docker compose ps"
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Slack notification (no-ops without SLACK_WEBHOOK_URL)
   # ──────────────────────────────────────────────────────────────────────
   notify:
     name: Slack notify
     if: always()
-    needs: [build-and-push, train-and-log, deploy-and-smoke-test, security-scan]
+    needs: [build-and-push, security-scan]
     runs-on: ubuntu-latest
     steps:
       - name: Compute overall status
         id: status
         run: |
-          if [[ "${{ needs.build-and-push.result }}" == "failure" \
-             || "${{ needs.train-and-log.result }}" == "failure" \
-             || "${{ needs.deploy-and-smoke-test.result }}" == "failure" ]]; then
+          if [[ "${{ needs.build-and-push.result }}" == "failure" ]]; then
             echo "color=danger" >> "$GITHUB_OUTPUT"
-            echo "emoji=:x:"     >> "$GITHUB_OUTPUT"
+            echo "emoji=:x:" >> "$GITHUB_OUTPUT"
             echo "text=CD failed" >> "$GITHUB_OUTPUT"
           else
             echo "color=good" >> "$GITHUB_OUTPUT"
@@ -318,13 +350,11 @@ jobs:
           {
             "attachments": [{
               "color": "${{ steps.status.outputs.color }}",
-              "title": "${{ steps.status.outputs.emoji }} ${{ steps.status.outputs.text }}",
+              "title": "${{ steps.status.outputs.emoji }} ${{ steps.status.outputs.text }} · arm64 · ghcr.io",
               "fields": [
                 {"title": "Tag",        "value": "${{ env.IMAGE_TAG }}", "short": true},
                 {"title": "Branch",     "value": "${{ github.ref_name }}", "short": true},
                 {"title": "Build/push", "value": "${{ needs.build-and-push.result }}", "short": true},
-                {"title": "Train",      "value": "${{ needs.train-and-log.result }}", "short": true},
-                {"title": "Deploy",     "value": "${{ needs.deploy-and-smoke-test.result }}", "short": true},
                 {"title": "Trivy scan", "value": "${{ needs.security-scan.result }}", "short": true}
               ],
               "footer": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
