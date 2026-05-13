@@ -320,7 +320,13 @@ jobs:
             exit 1
           fi
           echo "✓ Key parses cleanly."
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Best-effort host-key prefetch. If the runner can't reach port 22
+          # (or ssh-keyscan exits non-zero for any reason) we continue — the
+          # ssh/scp commands below pass -o StrictHostKeyChecking=accept-new,
+          # so they'll TOFU-accept on first connect.
+          ssh-keyscan -T 5 -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "Host-keys collected: $(wc -l < ~/.ssh/known_hosts) line(s)"
 
       - name: Prepare deploy bundle
         run: |
@@ -338,16 +344,17 @@ jobs:
           DEPLOY_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
           DEPLOY_HOST: ${{ secrets.EC2_HOST }}
         run: |
+          SSH_OPTS="-i ~/.ssh/ec2_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
           # Clean up any bogus directories Docker auto-created on a previous
           # failed run (when a bind-mount source didn't exist, Docker made it
           # a directory — that breaks the "file → file" mount on the next try).
-          ssh -i ~/.ssh/ec2_key "$DEPLOY_USER@$DEPLOY_HOST" \
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
             "rm -rf ~/verado/moe-ids/monitoring/prometheus.yml \
                     ~/verado/moe-ids/monitoring/grafana/provisioning \
                     ~/verado/moe-ids/monitoring/grafana/dashboards 2>/dev/null || true
              mkdir -p ~/verado/moe-ids/artefacts ~/verado/MoE ~/verado/moe-ids/monitoring"
           # Sync everything (-r recursive). Trailing /. on src means "contents of".
-          scp -i ~/.ssh/ec2_key -r deploy-bundle/. \
+          scp $SSH_OPTS -r deploy-bundle/. \
             "$DEPLOY_USER@$DEPLOY_HOST:~/verado/"
 
       - name: Roll new images on EC2
@@ -357,7 +364,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
           DEPLOY_HOST: ${{ secrets.EC2_HOST }}
         run: |
-          ssh -i ~/.ssh/ec2_key "$DEPLOY_USER@$DEPLOY_HOST" \
+          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 "$DEPLOY_USER@$DEPLOY_HOST" \
             "set -e
              cd ~/verado
              echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
