@@ -516,7 +516,7 @@ resource "aws_ecs_task_definition" "asset_sync" {
 
   container_definitions = jsonencode([{
     name       = "asset-sync"
-    image      = "public.ecr.aws/aws-cli/aws-cli:2"
+    image      = "public.ecr.aws/aws-cli/aws-cli:latest"
     essential  = true
     entryPoint = ["sh", "-c"]
     command    = [local.asset_sync_command]

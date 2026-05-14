@@ -1,8 +1,8 @@
 name: CD
 
-# Builds the 8 backend services as multi-arch images and pushes them to
-# GitHub Container Registry (ghcr.io). The frontend is excluded — it deploys
-# to Vercel via its own pipeline.
+# Builds the 8 backend services for linux/amd64, matching the live AWS ECS
+# x86_64 deployment. The frontend is excluded — it deploys to Vercel via its
+# own pipeline.
 #
 # Optional AWS ECS deploy: set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY repo
 # secrets and pass deploy_aws=true to apply infra/aws/terraform.
@@ -17,10 +17,6 @@ on:
         description: "Run a training job and log to MLflow"
         required: false
         default: "true"
-      platforms:
-        description: "Docker platforms to publish"
-        required: false
-        default: "linux/amd64,linux/arm64"
       deploy_aws:
         description: "Apply Terraform and deploy ECS-on-EC2 in AWS"
         required: false
@@ -65,11 +61,11 @@ on:
 
 concurrency:
   group: cd-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   IMAGE_TAG: ${{ github.event.inputs.tag || github.sha }}
-  PLATFORMS: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
+  PLATFORM: linux/amd64
   REGISTRY: ghcr.io
 
 jobs:
@@ -78,7 +74,7 @@ jobs:
   # (frontend is excluded — Vercel handles it)
   # ──────────────────────────────────────────────────────────────────────
   build-and-push:
-    name: Build multi-arch · ${{ matrix.image }}
+    name: Build amd64 · ${{ matrix.image }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -120,11 +116,6 @@ jobs:
         id: repo
         run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
-      - name: Set up QEMU (cross-build)
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: all
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -135,12 +126,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & push ${{ matrix.image }} (${{ env.PLATFORMS }})
+      - name: Build & push ${{ matrix.image }} (${{ env.PLATFORM }})
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.context }}/${{ matrix.dockerfile }}
-          platforms: ${{ env.PLATFORMS }}
+          platforms: ${{ env.PLATFORM }}
           push: true
           provenance: false
           tags: |
@@ -638,7 +629,7 @@ jobs:
           {
             "attachments": [{
               "color": "${{ steps.status.outputs.color }}",
-              "title": "${{ steps.status.outputs.emoji }} ${{ steps.status.outputs.text }} · ${{ env.PLATFORMS }} · ghcr.io",
+              "title": "${{ steps.status.outputs.emoji }} ${{ steps.status.outputs.text }} · ${{ env.PLATFORM }} · ghcr.io",
               "fields": [
                 {"title": "Tag",        "value": "${{ env.IMAGE_TAG }}", "short": true},
                 {"title": "Branch",     "value": "${{ github.ref_name }}", "short": true},
