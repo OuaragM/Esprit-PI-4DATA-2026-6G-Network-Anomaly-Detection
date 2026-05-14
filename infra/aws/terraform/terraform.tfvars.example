@@ -1,0 +1,33 @@
+project_name = "verado-demo"
+aws_region   = "us-east-1"
+
+# Must match the owner used by .github/workflows/cd.yml when it pushes to GHCR.
+github_owner = "your-github-owner"
+image_tag    = "latest"
+
+# Vercel deployment URL. This is used by backend CORS and JWT/login redirects.
+frontend_origin = "https://your-vercel-project.vercel.app"
+
+# For a quick academic demo you can leave this empty and use the ALB HTTP URL.
+# For HTTPS, create/validate an ACM cert in the same region and paste its ARN.
+acm_certificate_arn = ""
+
+# Full AI demo capacity. Set desired size to 0 when not rehearsing/presenting.
+ecs_cpu_architecture = "x86_64"
+ecs_instance_type    = "m7i-flex.large"
+ecs_min_size         = 0
+ecs_desired_size     = 3
+ecs_max_size         = 4
+
+# Keep training/observability scaled down until you need to show them.
+service_desired_counts = {
+  "moe-training-svc" = 0
+  "mlflow"           = 0
+  "prometheus"       = 0
+  "grafana"          = 0
+  "pushgateway"      = 0
+}
+
+# If your GHCR packages are private, create a Secrets Manager secret with:
+# {"username":"YOUR_GITHUB_USER","password":"YOUR_GITHUB_PAT_WITH_READ_PACKAGES"}
+# ghcr_credentials_secret_arn = "arn:aws:secretsmanager:..."

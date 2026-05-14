@@ -3,3 +3,12 @@ data/raw/data6g/*.csv
 claude.md
 .env
 .env.example
+.DS_Store
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+tfplan
+*.tfvars
+!terraform.tfvars.example
