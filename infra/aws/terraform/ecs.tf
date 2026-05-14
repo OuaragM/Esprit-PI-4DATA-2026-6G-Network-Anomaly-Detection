@@ -137,16 +137,20 @@ locals {
     "moe-inference-svc" = {
       image         = "${local.ghcr_prefix}/moe-inference:${var.image_tag}"
       port          = 8000
-      cpu           = 768
-      memory        = 3072
+      cpu           = 1024
+      memory        = 5120
       desired_count = 1
       env = {
-        ARTEFACTS_DIR       = "/app/artefacts/production"
-        WEBAPP_ORIGIN       = var.frontend_origin
-        LOG_DIR             = "/app/logs/predictions"
-        MLFLOW_TRACKING_URI = "http://mlflow:5000"
-        DATA_5G_PATH        = "/app/data/Global_CLEANED.csv"
-        DATA_6G_PATH        = "/app/data/AIoT_6G_CLEANED.csv"
+        ARTEFACTS_DIR          = "/app/artefacts/production"
+        WEBAPP_ORIGIN          = var.frontend_origin
+        LOG_DIR                = "/app/logs/predictions"
+        MLFLOW_TRACKING_URI    = "http://mlflow:5000"
+        DATA_5G_PATH           = "/app/data/Global_CLEANED.csv"
+        DATA_6G_PATH           = "/app/data/AIoT_6G_CLEANED.csv"
+        OMP_NUM_THREADS        = "1"
+        TF_ENABLE_ONEDNN_OPTS  = "0"
+        TF_NUM_INTEROP_THREADS = "1"
+        TF_NUM_INTRAOP_THREADS = "1"
       }
       secrets = [
         { name = "API_KEY", valueFrom = aws_secretsmanager_secret.internal_api_key.arn },
@@ -163,15 +167,19 @@ locals {
       image         = "${local.ghcr_prefix}/moe-training:${var.image_tag}"
       port          = 8010
       cpu           = 1024
-      memory        = 4096
+      memory        = 5120
       desired_count = 0
       env = {
-        ARTEFACTS_DIR       = "/app/artefacts/production"
-        INFERENCE_BASE_URL  = "http://moe-inference-svc:8000"
-        MLFLOW_TRACKING_URI = "http://mlflow:5000"
-        PUSHGATEWAY_URL     = "http://pushgateway:9091"
-        DATA_5G_PATH        = "/app/data/Global_CLEANED.csv"
-        DATA_6G_PATH        = "/app/data/AIoT_6G_CLEANED.csv"
+        ARTEFACTS_DIR          = "/app/artefacts/production"
+        INFERENCE_BASE_URL     = "http://moe-inference-svc:8000"
+        MLFLOW_TRACKING_URI    = "http://mlflow:5000"
+        PUSHGATEWAY_URL        = "http://pushgateway:9091"
+        DATA_5G_PATH           = "/app/data/Global_CLEANED.csv"
+        DATA_6G_PATH           = "/app/data/AIoT_6G_CLEANED.csv"
+        OMP_NUM_THREADS        = "1"
+        TF_ENABLE_ONEDNN_OPTS  = "0"
+        TF_NUM_INTEROP_THREADS = "1"
+        TF_NUM_INTRAOP_THREADS = "1"
       }
       secrets = [
         { name = "API_KEY", valueFrom = aws_secretsmanager_secret.internal_api_key.arn }
@@ -261,9 +269,7 @@ locals {
       command       = ["cat > /tmp/prometheus.yml <<'EOF'\n${local.prometheus_config}\nEOF\n/bin/prometheus --config.file=/tmp/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d"]
       env           = {}
       secrets       = []
-      mounts = [
-        { sourceVolume = "prometheus", containerPath = "/prometheus", readOnly = false }
-      ]
+      mounts        = []
     }
 
     "grafana" = {
@@ -279,9 +285,7 @@ locals {
       secrets = [
         { name = "GF_SECURITY_ADMIN_PASSWORD", valueFrom = aws_secretsmanager_secret.grafana_password.arn }
       ]
-      mounts = [
-        { sourceVolume = "grafana", containerPath = "/var/lib/grafana", readOnly = false }
-      ]
+      mounts = []
     }
 
     "pushgateway" = {
