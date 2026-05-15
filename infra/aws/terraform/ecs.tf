@@ -274,7 +274,7 @@ locals {
     }
 
     "grafana" = {
-      image         = "grafana/grafana:10.3.3"
+      image         = "${local.ghcr_prefix}/moe-grafana:${var.image_tag}"
       port          = 3000
       cpu           = 128
       memory        = 384
