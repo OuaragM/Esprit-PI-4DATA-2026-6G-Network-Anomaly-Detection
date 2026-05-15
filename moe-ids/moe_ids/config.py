@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     # ── Inference ─────────────────────────────────────────────────────────
     prediction_threshold: float = 0.5
     max_batch_file_mb: int = 100
+    reload_strategy: str = "hot"
 
     # ── MLflow ────────────────────────────────────────────────────────────
     mlflow_tracking_uri: str = "http://localhost:5000"

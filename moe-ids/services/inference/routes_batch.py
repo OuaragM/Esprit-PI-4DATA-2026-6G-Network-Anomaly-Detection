@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import signal
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -75,6 +78,13 @@ def _append_prediction_log(record: dict) -> None:
             f.write(json.dumps(record) + "\n")
     except Exception:
         pass
+
+
+def _restart_process_after_response() -> None:
+    # Give Uvicorn enough time to flush the 204 response before ECS replaces
+    # the task and startup loads the new artefacts from the shared volume.
+    time.sleep(1)
+    os.kill(os.getpid(), signal.SIGTERM)
 
 
 @router.post("/predict/batch", response_model=BatchPredictionResponse)
@@ -194,6 +204,11 @@ async def predict_batch(
 @router.post("/admin/reload", status_code=status.HTTP_204_NO_CONTENT)
 def admin_reload(_auth: AuthDep) -> None:
     """Hot-reload the model from disk. Called by the gateway after training."""
+    if settings.reload_strategy == "restart":
+        threading.Thread(target=_restart_process_after_response, daemon=True).start()
+        MODEL_RELOAD_COUNT.inc()
+        return
+
     try:
         reload_predictor()
         MODEL_RELOAD_COUNT.inc()

@@ -147,6 +147,7 @@ locals {
         MLFLOW_TRACKING_URI    = "http://mlflow:5000"
         DATA_5G_PATH           = "/app/data/Global_CLEANED.csv"
         DATA_6G_PATH           = "/app/data/AIoT_6G_CLEANED.csv"
+        RELOAD_STRATEGY        = "restart"
         OMP_NUM_THREADS        = "1"
         TF_ENABLE_ONEDNN_OPTS  = "0"
         TF_NUM_INTEROP_THREADS = "1"
