@@ -92,9 +92,6 @@ jobs:
           - image: moe-monitoring
             context: ./moe-ids
             dockerfile: services/monitoring/Dockerfile
-          - image: moe-grafana
-            context: ./moe-ids
-            dockerfile: monitoring/grafana/Dockerfile
           - image: dashboard-gateway
             context: ./dashboard/gateway
             dockerfile: Dockerfile
@@ -258,7 +255,6 @@ jobs:
           - moe-inference
           - moe-training
           - moe-monitoring
-          - moe-grafana
           - dashboard-gateway
           - dashboard-auth
           - dashboard-inference

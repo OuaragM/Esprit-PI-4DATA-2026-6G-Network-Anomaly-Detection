@@ -38,6 +38,14 @@ locals {
           - targets: ["pushgateway:9091"]
   EOT
 
+  grafana_dashboards_provisioning = replace(
+    file("${path.module}/../../../moe-ids/monitoring/grafana/provisioning/dashboards/dashboards.yml"),
+    "/etc/grafana/dashboards",
+    "/var/lib/grafana/dashboards",
+  )
+  grafana_datasource_provisioning = file("${path.module}/../../../moe-ids/monitoring/grafana/provisioning/datasources/prometheus.yml")
+  grafana_dashboard_json          = file("${path.module}/../../../moe-ids/monitoring/grafana/dashboards/moe_ids.json")
+
   service_configs = {
     "api-gateway" = {
       image         = "${local.ghcr_prefix}/dashboard-gateway:${var.image_tag}"
@@ -274,14 +282,30 @@ locals {
     }
 
     "grafana" = {
-      image         = "${local.ghcr_prefix}/moe-grafana:${var.image_tag}"
+      image         = "grafana/grafana:10.3.3"
       port          = 3000
       cpu           = 128
       memory        = 384
       desired_count = 0
+      entry_point   = ["sh", "-c"]
+      command = [<<-EOT
+        mkdir -p /var/lib/grafana/provisioning/dashboards /var/lib/grafana/provisioning/datasources /var/lib/grafana/dashboards
+        cat > /var/lib/grafana/provisioning/dashboards/dashboards.yml <<'GRAFANA_DASHBOARDS_EOF'
+        ${local.grafana_dashboards_provisioning}
+        GRAFANA_DASHBOARDS_EOF
+        cat > /var/lib/grafana/provisioning/datasources/prometheus.yml <<'GRAFANA_DATASOURCE_EOF'
+        ${local.grafana_datasource_provisioning}
+        GRAFANA_DATASOURCE_EOF
+        cat > /var/lib/grafana/dashboards/moe_ids.json <<'GRAFANA_DASHBOARD_JSON_EOF'
+        ${local.grafana_dashboard_json}
+        GRAFANA_DASHBOARD_JSON_EOF
+        exec /run.sh
+      EOT
+      ]
       env = {
         GF_USERS_ALLOW_SIGN_UP    = "false"
         GF_AUTH_ANONYMOUS_ENABLED = "false"
+        GF_PATHS_PROVISIONING     = "/var/lib/grafana/provisioning"
       }
       secrets = [
         { name = "GF_SECURITY_ADMIN_PASSWORD", valueFrom = aws_secretsmanager_secret.grafana_password.arn }
