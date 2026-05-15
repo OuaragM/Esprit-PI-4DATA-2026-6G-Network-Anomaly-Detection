@@ -98,6 +98,26 @@ resource "aws_vpc_security_group_ingress_rule" "alb_https" {
   to_port           = 443
 }
 
+resource "aws_vpc_security_group_ingress_rule" "alb_grafana" {
+  for_each = toset(var.allowed_http_cidrs)
+
+  security_group_id = aws_security_group.alb.id
+  cidr_ipv4         = each.value
+  from_port         = 3000
+  ip_protocol       = "tcp"
+  to_port           = 3000
+}
+
+resource "aws_vpc_security_group_ingress_rule" "alb_mlflow" {
+  for_each = toset(var.allowed_http_cidrs)
+
+  security_group_id = aws_security_group.alb.id
+  cidr_ipv4         = each.value
+  from_port         = 5000
+  ip_protocol       = "tcp"
+  to_port           = 5000
+}
+
 resource "aws_vpc_security_group_egress_rule" "alb_all" {
   security_group_id = aws_security_group.alb.id
   cidr_ipv4         = "0.0.0.0/0"

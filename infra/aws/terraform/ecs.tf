@@ -399,9 +399,9 @@ resource "aws_ecs_service" "service" {
   }
 
   dynamic "load_balancer" {
-    for_each = each.key == "api-gateway" ? [1] : []
+    for_each = each.key == "api-gateway" ? [aws_lb_target_group.gateway.arn] : each.key == "grafana" ? [aws_lb_target_group.grafana.arn] : each.key == "mlflow" ? [aws_lb_target_group.mlflow.arn] : []
     content {
-      target_group_arn = aws_lb_target_group.gateway.arn
+      target_group_arn = load_balancer.value
       container_name   = each.key
       container_port   = each.value.port
     }
@@ -432,6 +432,8 @@ resource "aws_ecs_service" "service" {
   depends_on = [
     aws_ecs_cluster_capacity_providers.main,
     aws_lb_listener.http_forward,
+    aws_lb_listener.grafana,
+    aws_lb_listener.mlflow,
     aws_lb_listener.http_redirect,
     aws_lb_listener.https,
     aws_efs_mount_target.main

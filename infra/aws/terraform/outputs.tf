@@ -8,6 +8,16 @@ output "api_base_url" {
   value       = var.acm_certificate_arn == "" ? "http://${aws_lb.public.dns_name}" : "https://${aws_lb.public.dns_name}"
 }
 
+output "grafana_url" {
+  description = "Public Grafana URL for the demo environment."
+  value       = "http://${aws_lb.public.dns_name}:3000"
+}
+
+output "mlflow_url" {
+  description = "Public MLflow URL for the demo environment."
+  value       = "http://${aws_lb.public.dns_name}:5000"
+}
+
 output "ecs_cluster_name" {
   value = aws_ecs_cluster.main.name
 }
