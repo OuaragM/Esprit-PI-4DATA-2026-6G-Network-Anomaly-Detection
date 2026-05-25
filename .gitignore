@@ -12,3 +12,16 @@ crash.*.log
 tfplan
 *.tfvars
 !terraform.tfvars.example
+PROJECT_CHANGES_SUMMARY.md
+MOE_IDS_GUIDE.md
+MLOps_Pipeline_Explained.md
+Landing_Page_Brief_for_Claude.md
+JURY_NEXT_WEEK_PLAN.md
+IMPLEMENTATION_AUDIT.md
+DESIGN_SYSTEM_CONSISTENCY.md
+DEMO_CHECKLIST.md
+CLAUDE.md
+ATTACK_ALERT_ENHANCEMENTS.md
+ARCHITECTURE.md
+TESTING_AND_SETUP.md
+

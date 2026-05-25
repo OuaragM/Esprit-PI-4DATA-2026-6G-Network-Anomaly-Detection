@@ -32,6 +32,16 @@
   --shadow-sm: 0 1px 2px rgba(20, 25, 40, 0.04);
   --shadow:    0 1px 3px rgba(20, 25, 40, 0.06), 0 1px 2px rgba(20, 25, 40, 0.04);
   --shadow-lg: 0 8px 24px rgba(20, 25, 40, 0.08), 0 2px 6px rgba(20, 25, 40, 0.06);
+
+  /* Aliases — used by older page styles. Map to the canonical tokens above
+     so they auto-adapt to light/dark instead of resolving to undefined. */
+  --bg-accent:   var(--bg-elev);
+  --bg-elevated: var(--bg-elev);
+  --fg-hint:     var(--fg-subtle);
+  --border:      var(--line);
+  --radius-lg:   14px;
+  --radius-md:   8px;
+  --radius-sm:   4px;
 }
 
 [data-theme="dark"] {
@@ -104,7 +114,7 @@ body::before {
   inset: 0;
   pointer-events: none;
   background-image:
-    radial-gradient(circle at 1px 1px, oklch(0.85 0.008 80) 1px, transparent 0);
+    radial-gradient(circle at 1px 1px, var(--line-strong) 1px, transparent 0);
   background-size: 22px 22px;
   background-position: -1px -1px;
   mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.55), transparent 80%);
