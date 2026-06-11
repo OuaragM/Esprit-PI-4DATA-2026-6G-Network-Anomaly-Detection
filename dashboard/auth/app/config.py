@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
-    SMTP_FROM: str = "noreply@resinet.tn"
+    SMTP_PASSWORD: str = "cilookwuytkcqpqt"
+    SMTP_FROM: str = "confero.notification@gmail.com"
     SMTP_TLS: bool = True
     APP_LOGIN_URL: str = "http://localhost:3000/login"
 
