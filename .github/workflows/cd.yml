@@ -6,8 +6,6 @@ name: CD
 #
 # Optional AWS ECS deploy: set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY repo
 # secrets and pass deploy_aws=true to apply infra/aws/terraform.
-# Optional AWS ECS deploy: set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY repo
-# secrets and pass deploy_aws=true to apply infra/aws/terraform.
 
 on:
   workflow_dispatch:
@@ -64,7 +62,6 @@ on:
       - "docker-compose.yml"
       - "docker-compose.prod.yml"
       - "infra/aws/**"
-      - "infra/aws/**"
 
 concurrency:
   group: cd-${{ github.ref }}
@@ -77,7 +74,6 @@ env:
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────
-  # Build backend images and push to ghcr.io
   # Build backend images and push to ghcr.io
   # (frontend is excluded — Vercel handles it)
   # ──────────────────────────────────────────────────────────────────────
@@ -302,172 +298,6 @@ jobs:
           sarif_file: trivy-${{ matrix.image }}.sarif
           category: trivy-${{ matrix.image }}
         continue-on-error: true
-
-  # ──────────────────────────────────────────────────────────────────────
-  # Optional: deploy the ECS-on-EC2 Terraform stack on AWS.
-  # Requires repo secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY.
-  # Optional secrets: AWS_SESSION_TOKEN, VERCEL_FRONTEND_ORIGIN.
-  # ──────────────────────────────────────────────────────────────────────
-  deploy-aws-ecs:
-    name: Deploy AWS ECS
-    if: >-
-      always() &&
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.deploy_aws == 'true' &&
-      needs.build-and-push.result == 'success' &&
-      (needs.train-and-log.result == 'success' || needs.train-and-log.result == 'skipped')
-    needs: [build-and-push, train-and-log]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      TF_IN_AUTOMATION: "true"
-      AWS_REGION: ${{ github.event.inputs.aws_region || 'us-east-1' }}
-      ECS_CPU_ARCHITECTURE: ${{ github.event.inputs.ecs_cpu_architecture || 'x86_64' }}
-      ECS_INSTANCE_TYPE: ${{ github.event.inputs.ecs_instance_type || 'm7i-flex.large' }}
-      ECS_DESIRED_SIZE: ${{ github.event.inputs.ecs_desired_size || '3' }}
-      ECS_MAX_SIZE: ${{ github.event.inputs.ecs_max_size || '4' }}
-      FRONTEND_ORIGIN: ${{ github.event.inputs.frontend_origin || secrets.VERCEL_FRONTEND_ORIGIN || '*' }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Lowercase repo owner
-        id: repo
-        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Write CI Terraform variables
-        working-directory: infra/aws/terraform
-        run: |
-          cat > ci.auto.tfvars <<EOF
-          project_name = "verado-demo"
-          aws_region   = "${AWS_REGION}"
-
-          github_owner = "${{ steps.repo.outputs.owner }}"
-          image_tag    = "${IMAGE_TAG}"
-
-          frontend_origin    = "${FRONTEND_ORIGIN}"
-          acm_certificate_arn = ""
-
-          ecs_cpu_architecture = "${ECS_CPU_ARCHITECTURE}"
-          ecs_instance_type    = "${ECS_INSTANCE_TYPE}"
-          ecs_min_size         = 0
-          ecs_desired_size     = ${ECS_DESIRED_SIZE}
-          ecs_max_size         = ${ECS_MAX_SIZE}
-
-          service_desired_counts = {
-            "api-gateway"        = 1
-            "auth-svc"           = 1
-            "upload-svc"         = 1
-            "inference-svc"      = 1
-            "report-svc"         = 1
-            "moe-inference-svc"  = 1
-            "moe-monitoring-svc" = 1
-            "redis"              = 1
-            "minio"              = 1
-            "moe-training-svc"   = 1
-            "mlflow"             = 1
-            "prometheus"         = 1
-            "grafana"            = 1
-            "pushgateway"        = 1
-          }
-          EOF
-
-      - name: Terraform apply
-        working-directory: infra/aws/terraform
-        run: |
-          terraform init -input=false
-          terraform apply -input=false -auto-approve
-
-      - name: Download trained artefacts
-        if: github.event.inputs.run_training != 'false'
-        uses: actions/download-artifact@v4
-        with:
-          name: artefacts-cd-${{ env.IMAGE_TAG }}
-          path: /tmp/verado-artefacts/production
-
-      - name: Upload demo assets to S3
-        working-directory: infra/aws/terraform
-        run: |
-          BUCKET="$(terraform output -raw asset_bucket)"
-
-          if [ -d /tmp/verado-artefacts/production ]; then
-            aws s3 sync /tmp/verado-artefacts/production/ "s3://${BUCKET}/artefacts/production/" --delete
-          elif [ -d ../../../moe-ids/artefacts/production ]; then
-            aws s3 sync ../../../moe-ids/artefacts/production/ "s3://${BUCKET}/artefacts/production/" --delete
-          else
-            echo "::warning::No production artefacts found to upload."
-          fi
-
-          aws s3 cp ../../../MoE/Global_CLEANED.csv "s3://${BUCKET}/data/Global_CLEANED.csv"
-          aws s3 cp ../../../MoE/AIoT_6G_CLEANED.csv "s3://${BUCKET}/data/AIoT_6G_CLEANED.csv"
-
-      - name: Run one-off ECS setup tasks
-        working-directory: infra/aws/terraform
-        run: |
-          CLUSTER="$(terraform output -raw ecs_cluster_name)"
-
-          run_and_wait() {
-            local task_definition="$1"
-            local name="$2"
-            local task_arn
-
-            task_arn="$(aws ecs run-task \
-              --cluster "$CLUSTER" \
-              --launch-type EC2 \
-              --task-definition "$task_definition" \
-              --count 1 \
-              --started-by "github-actions-${name}" \
-              --query 'tasks[0].taskArn' \
-              --output text)"
-
-            if [ "$task_arn" = "None" ] || [ -z "$task_arn" ]; then
-              echo "::error::Failed to start ${name} task"
-              exit 1
-            fi
-
-            aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"
-            exit_code="$(aws ecs describe-tasks \
-              --cluster "$CLUSTER" \
-              --tasks "$task_arn" \
-              --query 'tasks[0].containers[0].exitCode' \
-              --output text)"
-
-            if [ "$exit_code" != "0" ]; then
-              echo "::error::${name} task exited with ${exit_code}"
-              exit 1
-            fi
-          }
-
-          run_and_wait "$(terraform output -raw db_init_task_definition)" "db-init"
-          run_and_wait "$(terraform output -raw asset_sync_task_definition)" "asset-sync"
-
-      - name: Check API health
-        working-directory: infra/aws/terraform
-        run: |
-          API_URL="$(terraform output -raw api_base_url)"
-          for i in {1..60}; do
-            if curl -fsS "${API_URL}/health"; then
-              echo ""
-              echo "API is healthy at ${API_URL}"
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "::error::API health check failed at ${API_URL}/health"
-          exit 1
 
   # ──────────────────────────────────────────────────────────────────────
   # Optional: deploy the ECS-on-EC2 Terraform stack on AWS.
