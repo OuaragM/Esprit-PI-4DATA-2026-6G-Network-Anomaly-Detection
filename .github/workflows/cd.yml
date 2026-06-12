@@ -575,7 +575,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
           DEPLOY_HOST: ${{ secrets.EC2_HOST }}
         run: |
-          SSH_OPTS="-i ~/.ssh/ec2_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
+          SSH_OPTS="-i ~/.ssh/ec2_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=120"
           # Clean up any bogus directories Docker auto-created on a previous
           # failed run (when a bind-mount source didn't exist, Docker made it
           # a directory — that breaks the "file → file" mount on the next try).
@@ -596,7 +596,12 @@ jobs:
           DEPLOY_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
           DEPLOY_HOST: ${{ secrets.EC2_HOST }}
         run: |
-          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 "$DEPLOY_USER@$DEPLOY_HOST" \
+          ssh -i ~/.ssh/ec2_key \
+              -o StrictHostKeyChecking=accept-new \
+              -o ConnectTimeout=15 \
+              -o ServerAliveInterval=30 \
+              -o ServerAliveCountMax=120 \
+              "$DEPLOY_USER@$DEPLOY_HOST" \
             "set -e
              cd ~/verado
              echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
