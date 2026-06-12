@@ -580,9 +580,10 @@ jobs:
           # failed run (when a bind-mount source didn't exist, Docker made it
           # a directory — that breaks the "file → file" mount on the next try).
           ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
-            "rm -rf ~/verado/moe-ids/monitoring/prometheus.yml \
-                    ~/verado/moe-ids/monitoring/grafana/provisioning \
-                    ~/verado/moe-ids/monitoring/grafana/dashboards 2>/dev/null || true
+            "sudo chown -R \$(id -u):\$(id -g) ~/verado 2>/dev/null || true
+             sudo rm -rf ~/verado/moe-ids/monitoring/prometheus.yml \
+                         ~/verado/moe-ids/monitoring/grafana/provisioning \
+                         ~/verado/moe-ids/monitoring/grafana/dashboards 2>/dev/null || true
              mkdir -p ~/verado/moe-ids/artefacts ~/verado/MoE ~/verado/moe-ids/monitoring"
           # Sync everything (-r recursive). Trailing /. on src means "contents of".
           scp $SSH_OPTS -r deploy-bundle/. \
