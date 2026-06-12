@@ -66,8 +66,8 @@ services:
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM: ${SMTP_FROM:-noreply@resinet.tn}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-cilookwuytkcqpqt}
+      SMTP_FROM: ${SMTP_FROM:-confero.notification@gmail.com}
       SMTP_TLS: ${SMTP_TLS:-true}
       APP_LOGIN_URL: ${APP_LOGIN_URL:-http://localhost:3000/login}
     depends_on:
