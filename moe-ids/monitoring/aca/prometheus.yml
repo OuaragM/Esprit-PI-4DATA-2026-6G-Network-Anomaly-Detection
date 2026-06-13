@@ -1,0 +1,33 @@
+# Prometheus config for Azure Container Apps (baked into the moe-prometheus
+# image by ../Dockerfile.prometheus — ACA cannot bind-mount repo files).
+#
+# Differences vs ../prometheus.yml (the docker-compose config):
+#   - Targets go through the ACA internal ingress on port 80, not the
+#     container ports (DNS app names resolve to the ingress proxy).
+#   - moe_training is NOT scraped: it scales to zero, and a 15s scrape would
+#     keep it permanently awake. Its training-run metrics arrive via the
+#     pushgateway instead.
+#   - node-exporter and cadvisor are dropped: no host access on Container
+#     Apps. Platform metrics live in Azure Monitor / Log Analytics.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # ── MoE IDS microservices ────────────────────────────────────────────────
+  - job_name: moe_inference
+    static_configs:
+      - targets: ["moe-inference-svc:80"]
+    metrics_path: /metrics
+
+  - job_name: moe_monitoring
+    static_configs:
+      - targets: ["moe-monitoring-svc:80"]
+    metrics_path: /metrics
+
+  # ── Model-run metrics pushed by scripts/train.py ─────────────────────────
+  - job_name: pushgateway
+    honor_labels: true
+    static_configs:
+      - targets: ["pushgateway:80"]

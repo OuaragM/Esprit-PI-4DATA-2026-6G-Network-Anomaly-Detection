@@ -1,11 +1,16 @@
 name: CD
 
-# Builds the 8 backend services as multi-arch images and pushes them to
+# Builds the backend services as multi-arch images and pushes them to
 # GitHub Container Registry (ghcr.io). The frontend is excluded — it deploys
 # to Vercel via its own pipeline.
 #
-# Optional AWS ECS deploy: set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY repo
-# secrets and pass deploy_aws=true to apply infra/aws/terraform.
+# Optional deploys (deploy_target input):
+#   azure   — apply infra/azure/terraform (Container Apps). Needs AZURE_CLIENT_ID,
+#             AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_TFSTATE_RG,
+#             AZURE_TFSTATE_SA, POSTGRES_ADMIN_PASSWORD secrets
+#             (see infra/azure/README.md).
+#   aws-ecs — apply infra/aws/terraform. Needs AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.
+#   ec2     — SSH to an EC2 host and roll images. Needs EC2_HOST/EC2_SSH_KEY.
 
 on:
   workflow_dispatch:
@@ -21,10 +26,22 @@ on:
         description: "Docker platforms to publish"
         required: false
         default: "linux/amd64,linux/arm64"
-      deploy_aws:
-        description: "Apply Terraform and deploy ECS-on-EC2 in AWS"
+      # NOTE: workflow_dispatch is capped at 10 inputs — deploy_aws/deploy_ec2
+      # were merged into deploy_target to make room for the Azure deploy.
+      deploy_target:
+        description: "Where to deploy after the build"
         required: false
-        default: "false"
+        type: choice
+        default: "none"
+        options:
+          - none
+          - azure
+          - aws-ecs
+          - ec2
+      azure_region:
+        description: "Azure region for the Container Apps deploy"
+        required: false
+        default: "francecentral"
       aws_region:
         description: "AWS region for Terraform deploy"
         required: false
@@ -37,22 +54,10 @@ on:
         description: "ECS EC2 instance type"
         required: false
         default: "m7i-flex.large"
-      ecs_desired_size:
-        description: "ECS Auto Scaling Group desired capacity"
-        required: false
-        default: "3"
-      ecs_max_size:
-        description: "ECS Auto Scaling Group max capacity"
-        required: false
-        default: "4"
       frontend_origin:
         description: "Frontend origin for CORS. Use * for an open demo."
         required: false
         default: "*"
-      deploy_ec2:
-        description: "SSH to EC2 and roll the new images (needs EC2_* secrets)"
-        required: false
-        default: "false"
   push:
     branches: [main]
     paths:
@@ -62,6 +67,7 @@ on:
       - "docker-compose.yml"
       - "docker-compose.prod.yml"
       - "infra/aws/**"
+      - "infra/azure/**"
 
 concurrency:
   group: cd-${{ github.ref }}
@@ -111,6 +117,14 @@ jobs:
           - image: dashboard-report
             context: ./dashboard/report
             dockerfile: Dockerfile
+          # Azure Container Apps cannot bind-mount repo files, so the
+          # Prometheus/Grafana configs are baked into dedicated images.
+          - image: moe-prometheus
+            context: ./moe-ids/monitoring
+            dockerfile: Dockerfile.prometheus
+          - image: moe-grafana
+            context: ./moe-ids/monitoring
+            dockerfile: Dockerfile.grafana
     steps:
       - uses: actions/checkout@v4
         with:
@@ -269,6 +283,8 @@ jobs:
           - dashboard-inference
           - dashboard-upload
           - dashboard-report
+          - moe-prometheus
+          - moe-grafana
     steps:
       - name: Lowercase repo owner
         id: repo
@@ -309,7 +325,7 @@ jobs:
     if: >-
       always() &&
       github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.deploy_aws == 'true' &&
+      github.event.inputs.deploy_target == 'aws-ecs' &&
       needs.build-and-push.result == 'success' &&
       (needs.train-and-log.result == 'success' || needs.train-and-log.result == 'skipped')
     needs: [build-and-push, train-and-log]
@@ -321,8 +337,9 @@ jobs:
       AWS_REGION: ${{ github.event.inputs.aws_region || 'us-east-1' }}
       ECS_CPU_ARCHITECTURE: ${{ github.event.inputs.ecs_cpu_architecture || 'x86_64' }}
       ECS_INSTANCE_TYPE: ${{ github.event.inputs.ecs_instance_type || 'm7i-flex.large' }}
-      ECS_DESIRED_SIZE: ${{ github.event.inputs.ecs_desired_size || '3' }}
-      ECS_MAX_SIZE: ${{ github.event.inputs.ecs_max_size || '4' }}
+      # Former workflow inputs, fixed here to free input slots (10-input cap)
+      ECS_DESIRED_SIZE: "3"
+      ECS_MAX_SIZE: "4"
       FRONTEND_ORIGIN: ${{ github.event.inputs.frontend_origin || secrets.VERCEL_FRONTEND_ORIGIN || '*' }}
     steps:
       - uses: actions/checkout@v4
@@ -466,12 +483,177 @@ jobs:
           exit 1
 
   # ──────────────────────────────────────────────────────────────────────
+  # Optional: deploy the Container Apps Terraform stack on Azure.
+  # Requires repo secrets (see infra/azure/README.md):
+  #   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID  (OIDC login)
+  #   AZURE_TFSTATE_RG, AZURE_TFSTATE_SA                       (remote state)
+  #   POSTGRES_ADMIN_PASSWORD, JWT_SECRET, INTERNAL_API_KEY,
+  #   MINIO_SECRET_KEY, GRAFANA_PASSWORD                       (app secrets)
+  # Optional: GHCR_PAT (private packages), VERCEL_FRONTEND_ORIGIN, SMTP_*.
+  # ──────────────────────────────────────────────────────────────────────
+  deploy-azure:
+    name: Deploy Azure Container Apps
+    if: >-
+      always() &&
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.deploy_target == 'azure' &&
+      needs.build-and-push.result == 'success' &&
+      (needs.train-and-log.result == 'success' || needs.train-and-log.result == 'skipped')
+    needs: [build-and-push, train-and-log]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC federated credential for azure/login + Terraform
+    env:
+      TF_IN_AUTOMATION: "true"
+      AZURE_REGION: ${{ github.event.inputs.azure_region || 'francecentral' }}
+      FRONTEND_ORIGIN: ${{ github.event.inputs.frontend_origin || secrets.VERCEL_FRONTEND_ORIGIN || '*' }}
+      # The azurerm provider AND its backend authenticate via these + OIDC.
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Lowercase repo owner
+        id: repo
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Verify deploy secrets are present
+        run: |
+          missing=""
+          [ -z "${{ secrets.AZURE_CLIENT_ID }}" ]          && missing="$missing AZURE_CLIENT_ID"
+          [ -z "${{ secrets.AZURE_TENANT_ID }}" ]          && missing="$missing AZURE_TENANT_ID"
+          [ -z "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]    && missing="$missing AZURE_SUBSCRIPTION_ID"
+          [ -z "${{ secrets.AZURE_TFSTATE_RG }}" ]         && missing="$missing AZURE_TFSTATE_RG"
+          [ -z "${{ secrets.AZURE_TFSTATE_SA }}" ]         && missing="$missing AZURE_TFSTATE_SA"
+          [ -z "${{ secrets.POSTGRES_ADMIN_PASSWORD }}" ]  && missing="$missing POSTGRES_ADMIN_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repo secrets:$missing — run infra/azure/scripts/bootstrap.sh first (see infra/azure/README.md)"
+            exit 1
+          fi
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          # The wrapper pollutes $(terraform output -raw ...) captures
+          terraform_wrapper: false
+
+      - name: Write CI Terraform variables
+        working-directory: infra/azure/terraform
+        run: |
+          cat > ci.auto.tfvars <<EOF
+          project_name = "verado-demo"
+          location     = "${AZURE_REGION}"
+
+          github_owner = "${{ steps.repo.outputs.owner }}"
+          image_tag    = "${IMAGE_TAG}"
+
+          frontend_origin = "${FRONTEND_ORIGIN}"
+          EOF
+
+          # Point auth emails at the real frontend when one is configured
+          if [ "${FRONTEND_ORIGIN}" != "*" ]; then
+            echo "app_login_url = \"${FRONTEND_ORIGIN}/login\"" >> ci.auto.tfvars
+          fi
+
+      - name: Terraform apply
+        working-directory: infra/azure/terraform
+        env:
+          TF_VAR_postgres_admin_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET || 'supersecretkey' }}
+          TF_VAR_internal_api_key: ${{ secrets.INTERNAL_API_KEY || 'changeme' }}
+          TF_VAR_minio_secret_key: ${{ secrets.MINIO_SECRET_KEY || 'minioadmin123' }}
+          TF_VAR_grafana_admin_password: ${{ secrets.GRAFANA_PASSWORD || 'admin' }}
+          TF_VAR_ghcr_username: ${{ github.actor }}
+          TF_VAR_ghcr_pat: ${{ secrets.GHCR_PAT }}
+          TF_VAR_smtp_user: ${{ secrets.SMTP_USER }}
+          TF_VAR_smtp_password: ${{ secrets.SMTP_PASSWORD }}
+          TF_VAR_smtp_from: ${{ secrets.SMTP_FROM }}
+          TF_VAR_slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ secrets.AZURE_TFSTATE_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.AZURE_TFSTATE_SA }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=azure.terraform.tfstate" \
+            -backend-config="use_azuread_auth=true"
+          terraform apply -input=false -auto-approve
+
+      - name: Download trained artefacts
+        if: github.event.inputs.run_training != 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: artefacts-cd-${{ env.IMAGE_TAG }}
+          path: /tmp/verado-artefacts/production
+
+      - name: Upload artefacts + data to Azure Files
+        working-directory: infra/azure/terraform
+        run: |
+          ACCOUNT="$(terraform output -raw storage_account_name)"
+          RG="$(terraform output -raw resource_group_name)"
+          KEY="$(az storage account keys list -g "$RG" -n "$ACCOUNT" --query '[0].value' -o tsv)"
+
+          if [ -d /tmp/verado-artefacts/production ]; then
+            az storage file upload-batch \
+              --account-name "$ACCOUNT" --account-key "$KEY" \
+              --destination artefacts --destination-path production \
+              --source /tmp/verado-artefacts/production
+          elif [ -d ../../../moe-ids/artefacts/production ]; then
+            az storage file upload-batch \
+              --account-name "$ACCOUNT" --account-key "$KEY" \
+              --destination artefacts --destination-path production \
+              --source ../../../moe-ids/artefacts/production
+          else
+            echo "::warning::No production artefacts found to upload."
+          fi
+
+          az storage file upload --account-name "$ACCOUNT" --account-key "$KEY" \
+            --share-name moe-data --source ../../../MoE/Global_CLEANED.csv --path Global_CLEANED.csv
+          az storage file upload --account-name "$ACCOUNT" --account-key "$KEY" \
+            --share-name moe-data --source ../../../MoE/AIoT_6G_CLEANED.csv --path AIoT_6G_CLEANED.csv
+
+      - name: Restart moe-inference so it loads the fresh artefacts
+        working-directory: infra/azure/terraform
+        run: |
+          az config set extension.use_dynamic_install=yes_without_prompt
+          RG="$(terraform output -raw resource_group_name)"
+          REVISION="$(az containerapp revision list -g "$RG" -n moe-inference-svc --query '[0].name' -o tsv)"
+          az containerapp revision restart -g "$RG" -n moe-inference-svc --revision "$REVISION"
+
+      - name: Check API health
+        working-directory: infra/azure/terraform
+        run: |
+          API_URL="$(terraform output -raw api_base_url)"
+          for i in {1..60}; do
+            if curl -fsS "${API_URL}/health"; then
+              echo ""
+              echo "API is healthy at ${API_URL}"
+              echo "Set NEXT_PUBLIC_API_URL=${API_URL} in Vercel and redeploy the frontend."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::API health check failed at ${API_URL}/health"
+          exit 1
+
+  # ──────────────────────────────────────────────────────────────────────
   # Optional: SSH to the EC2 instance and roll the new images
   # Requires repo secrets: EC2_HOST, EC2_USER (default: ubuntu), EC2_SSH_KEY
   # ──────────────────────────────────────────────────────────────────────
   deploy-ec2:
     name: Deploy to EC2
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_ec2 == 'true'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'ec2'
     needs: [build-and-push]
     runs-on: ubuntu-latest
     steps:
@@ -484,7 +666,7 @@ jobs:
       - name: Verify deploy secrets are present
         run: |
           if [ -z "${{ secrets.EC2_HOST }}" ] || [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
-            echo "::error::EC2_HOST and EC2_SSH_KEY secrets are required for deploy_ec2=true"
+            echo "::error::EC2_HOST and EC2_SSH_KEY secrets are required for deploy_target=ec2"
             exit 1
           fi
 

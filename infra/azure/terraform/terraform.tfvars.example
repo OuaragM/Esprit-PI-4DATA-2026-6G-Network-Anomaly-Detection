@@ -1,0 +1,32 @@
+# Copy to terraform.tfvars and edit. Secrets can also be passed as
+# TF_VAR_* environment variables instead (that is what the CD workflow does).
+
+project_name = "verado-demo"
+location     = "francecentral" # try westeurope / swedencentral if B1ms is unavailable
+
+github_owner = "YOUR_GITHUB_OWNER"
+image_tag    = "latest"
+
+# Vercel production domain — required for cookies/CORS to work from the app.
+frontend_origin = "https://your-app.vercel.app"
+app_login_url   = "https://your-app.vercel.app/login"
+
+# Only if the ghcr.io packages are private:
+# ghcr_username = "YOUR_GITHUB_USER"
+# ghcr_pat      = "ghp_xxx (read:packages)"
+
+# Use letters/digits only — embedded in connection-string env vars.
+postgres_admin_password = "ChangeMe123456"
+
+jwt_secret       = "generate-a-long-random-string"
+internal_api_key = "generate-another-random-string"
+
+minio_access_key = "minioadmin"
+minio_secret_key = "minioadmin123"
+
+grafana_admin_password = "admin"
+
+# Optional Gmail SMTP for auth-svc emails (App Password, not account password)
+# smtp_user     = "you@gmail.com"
+# smtp_password = "xxxx xxxx xxxx xxxx"
+# smtp_from     = "you@gmail.com"

@@ -1,0 +1,6 @@
+# Prometheus with the Azure Container Apps scrape config baked in.
+# (ACA cannot bind-mount repo files the way docker-compose does.)
+# Built by cd.yml as ghcr.io/<owner>/moe-prometheus. Context: moe-ids/monitoring
+FROM prom/prometheus:v2.50.1
+
+COPY aca/prometheus.yml /etc/prometheus/prometheus.yml

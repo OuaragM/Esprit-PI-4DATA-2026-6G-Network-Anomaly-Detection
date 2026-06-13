@@ -1,0 +1,13 @@
+# Grafana datasource for Azure Container Apps (overrides
+# provisioning/datasources/prometheus.yml in the baked moe-grafana image).
+# Prometheus is reached through the ACA internal ingress on port 80.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:80
+    isDefault: true
+    editable: false

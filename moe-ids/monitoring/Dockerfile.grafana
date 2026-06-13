@@ -1,0 +1,9 @@
+# Grafana with provisioning + dashboards baked in for Azure Container Apps.
+# (ACA cannot bind-mount repo files the way docker-compose does.)
+# Built by cd.yml as ghcr.io/<owner>/moe-grafana. Context: moe-ids/monitoring
+FROM grafana/grafana:10.3.3
+
+COPY grafana/provisioning /etc/grafana/provisioning
+COPY grafana/dashboards /etc/grafana/dashboards
+# ACA reaches Prometheus through the internal ingress on port 80, not :9090
+COPY aca/grafana-datasource.yml /etc/grafana/provisioning/datasources/prometheus.yml
