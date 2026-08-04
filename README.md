@@ -978,14 +978,14 @@ Access http://localhost:5000
 
 ## 👥 Team
 
-**Project Lead**: RESINET (Team Name)
+**Project Lead**: RESINET 
 
 **Team Members**:
 - Mohamed Seifeddine Ouarag
 - Nawres Bensethom
 - Hadil Fatnassi
 - Mohamed Khaled Benhmida
-- Maram Kaouach
+- Maram Kaouech
 - Amine Trabelsi
 
 **Supervisors**:
